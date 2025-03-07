@@ -1,6 +1,6 @@
 import SwiftUI
 import CoreData
-import UniformTypeIdentifiers
+import FirebaseFirestore
 
 enum ExpenseEntryMode: String, CaseIterable, Identifiable {
     case quick = "Быстрый расход"
@@ -24,27 +24,29 @@ struct TransactionView: View {
     @State private var organization: String = ""
     @State private var price: String = ""
     @State private var quantity: String = ""
+    // Поле "Категория" – текстовое поле с выбором из списка
     @State private var category: String = ""
-    @State private var target: String = ""
+    // Переименованное поле "Для кого" -> "Техника"
+    @State private var technique: String = ""
     @State private var barcode: String = ""
     @State private var productImage: UIImage? = nil
     
-    // Флаги для выбора фото (без Firebase)
+    // Флаги для выбора фото
     @State private var showingImagePicker: Bool = false
     @State private var showPhotoOptions: Bool = false
     @State private var imagePickerSourceType: UIImagePickerController.SourceType = .photoLibrary
     
-    // Дополнительные поля – загружаются из UserDefaults (если это было до Firebase)
+    // Дополнительные поля – загружаются из UserDefaults
     @State private var customFields: [CustomField] = {
         let saved = UserDefaults.standard.stringArray(forKey: "CustomFields") ?? ["название", "организация", "цена"]
         return saved.map { CustomField(name: $0, value: "") }
     }()
     
-    // Опции для выпадающих списков для полей "Категория" и "Техника"
+    // Опции для выпадающих списков для "Категория" и "Техника"
     @State private var categoryOptions: [String] = UserDefaults.standard.stringArray(forKey: "CategoryOptions") ?? ["Электроника", "Продукты", "Одежда"]
     @State private var techniqueOptions: [String] = UserDefaults.standard.stringArray(forKey: "TechniqueOptions") ?? ["Компьютер", "Телефон", "Планшет"]
     
-    // Остальные переменные
+    // Дополнительные переменные
     @State private var filteredProducts: [ProductItem] = []
     @FetchRequest(
         entity: ProductItem.entity(),
@@ -62,7 +64,10 @@ struct TransactionView: View {
     @State private var showExpenseSupplySelection: Bool = false
     @State private var chosenProduct: ProductItem? = nil
     @State private var showExpenseDetailSheet: Bool = false
-
+    
+    // Статус сообщения для пользователя
+    @State private var statusMessage: String = ""
+    
     var body: some View {
         NavigationView {
             Form {
@@ -82,6 +87,7 @@ struct TransactionView: View {
                     }
                 }
                 
+                // Если операция "Приход" или расход в режиме "Быстрый расход"
                 if transactionType == "Приход" || (transactionType == "Расход" && expenseEntryMode == .quick) {
                     Section(header: Text("Информация о товаре")) {
                         TextField("Название", text: $productName)
@@ -122,14 +128,14 @@ struct TransactionView: View {
                             }
                         }
                         
-                        // Поле "Техника" (ранее "Для кого") с выпадающим списком
+                        // Поле "Техника" с выпадающим списком
                         HStack {
-                            TextField("Техника", text: $target)
+                            TextField("Техника", text: $technique)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                             Menu {
                                 ForEach(techniqueOptions, id: \.self) { option in
                                     Button(option) {
-                                        target = option
+                                        technique = option
                                     }
                                 }
                             } label: {
@@ -148,6 +154,7 @@ struct TransactionView: View {
                             }
                         }
                         
+                        // Добавление фото
                         Button(action: {
                             showPhotoOptions = true
                         }) {
@@ -178,6 +185,7 @@ struct TransactionView: View {
                         }
                     }
                     
+                    // Дополнительные поля
                     Section(header: Text("Дополнительные поля")) {
                         ForEach($customFields) { $field in
                             TextField(field.name, text: $field.value)
@@ -188,7 +196,9 @@ struct TransactionView: View {
                     Button("Сохранить операцию") {
                         saveTransactionQuickExpense()
                     }
-                } else if transactionType == "Расход" && expenseEntryMode == .choose {
+                }
+                // Если расход и выбран режим "Выбрать поставку"
+                else if transactionType == "Расход" && expenseEntryMode == .choose {
                     Section {
                         Button(action: {
                             showExpenseSupplySelection = true
@@ -201,11 +211,16 @@ struct TransactionView: View {
                         }
                     }
                 }
+                
+                if !statusMessage.isEmpty {
+                    Section {
+                        Text(statusMessage)
+                            .foregroundColor(.blue)
+                    }
+                }
             }
             .navigationTitle("Приход/Расход")
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(sourceType: imagePickerSourceType, image: $productImage)
-            }
+            // Сканер штрих-кодов
             .sheet(isPresented: $showingBarcodeScanner) {
                 BarcodeScannerView { scannedCode in
                     barcode = scannedCode
@@ -213,6 +228,7 @@ struct TransactionView: View {
                     autoFillProductData()
                 }
             }
+            // Выбор поставки для режима "Выбрать поставку"
             .sheet(isPresented: $showExpenseSupplySelection) {
                 ExpenseSupplySelectionView { selected in
                     chosenProduct = selected
@@ -220,10 +236,11 @@ struct TransactionView: View {
                     showExpenseDetailSheet = true
                 }
             }
+            // Детали поставки
             .sheet(isPresented: $showExpenseDetailSheet) {
                 if let product = chosenProduct {
-                    ExpenseSupplyDetailView(product: product) { prod, qty, purpose in
-                        processExpense(for: prod, quantity: qty, expensePurpose: purpose)
+                    ExpenseSupplyDetailView(product: product) { chosen, qty, purpose in
+                        print("Подтвержден расход для \(chosen.name ?? "") на \(qty) шт. с назначением: \(purpose)")
                         showExpenseDetailSheet = false
                         chosenProduct = nil
                     }
@@ -232,6 +249,9 @@ struct TransactionView: View {
         }
     }
     
+    // MARK: - Helper Methods
+    
+    /// Формирует список кнопок для выбора источника фото
     private func actionSheetButtons() -> [ActionSheet.Button] {
         var buttons: [ActionSheet.Button] = []
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -248,6 +268,7 @@ struct TransactionView: View {
         return buttons
     }
     
+    /// Автозаполнение полей по штрих-коду
     private func autoFillProductData() {
         guard !barcode.isEmpty else { return }
         let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
@@ -259,7 +280,7 @@ struct TransactionView: View {
                 price = existingProduct.price != 0 ? String(existingProduct.price) : ""
                 quantity = String(existingProduct.quantity)
                 category = existingProduct.category ?? ""
-                target = existingProduct.target ?? ""
+                technique = existingProduct.target ?? ""
                 if let data = existingProduct.photo, let image = UIImage(data: data) {
                     productImage = image
                 }
@@ -269,6 +290,7 @@ struct TransactionView: View {
         }
     }
     
+    /// Сохранение операции с синхронизацией в Core Data и Firestore
     private func saveTransactionQuickExpense() {
         guard let qty = Int64(quantity) else {
             print("Неверное значение количества")
@@ -283,26 +305,43 @@ struct TransactionView: View {
             newProduct.price = Double(price) ?? 0
             newProduct.quantity = qty
             newProduct.category = category
-            newProduct.target = target
+            newProduct.target = technique
             newProduct.barcode = barcode
             if let image = productImage, let data = image.jpegData(compressionQuality: 0.8) {
                 newProduct.photo = data
             }
             newProduct.container = selectedContainer
             
+            // Сохранение дополнительных полей
             var customDict: [String: String] = [:]
             for field in customFields {
                 if !field.value.isEmpty {
                     customDict[field.name] = field.value
                 }
             }
-            newProduct.customFields = customDict as NSObject
+            print("Custom fields to save: \(customDict)")
+            newProduct.customFields = customDict as NSDictionary
             
             let newTransaction = InventoryTransaction(context: viewContext)
             newTransaction.id = UUID()
             newTransaction.date = Date()
             newTransaction.type = transactionType
             newTransaction.product = newProduct
+            
+            do {
+                try viewContext.save()
+                statusMessage = "Операция сохранена локально!"
+                // Синхронизация с Firebase: добавление нового товара
+                FirestoreService.shared.saveProduct(product: newProduct) { error in
+                    if let error = error {
+                        statusMessage += "\nОшибка сохранения в Firebase: \(error.localizedDescription)"
+                    } else {
+                        statusMessage += "\nТовар добавлен в Firebase."
+                    }
+                }
+            } catch {
+                print("Ошибка сохранения транзакции: \(error)")
+            }
         } else if transactionType == "Расход" && expenseEntryMode == .quick {
             let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
             request.predicate = NSPredicate(format: "barcode == %@", barcode)
@@ -317,7 +356,7 @@ struct TransactionView: View {
                     newProduct.price = Double(price) ?? 0
                     newProduct.quantity = 0
                     newProduct.category = category
-                    newProduct.target = target
+                    newProduct.target = technique
                     newProduct.barcode = barcode
                     if let image = productImage, let data = image.jpegData(compressionQuality: 0.8) {
                         newProduct.photo = data
@@ -330,13 +369,25 @@ struct TransactionView: View {
                             customDict[field.name] = field.value
                         }
                     }
-                    newProduct.customFields = customDict as NSObject
+                    print("Custom fields to save: \(customDict)")
+                    newProduct.customFields = customDict as NSDictionary
                     
                     let newTransaction = InventoryTransaction(context: viewContext)
                     newTransaction.id = UUID()
                     newTransaction.date = Date()
                     newTransaction.type = transactionType
                     newTransaction.product = newProduct
+                    
+                    try viewContext.save()
+                    statusMessage = "Операция сохранена локально!"
+                    // Сохранение нового товара в Firebase
+                    FirestoreService.shared.saveProduct(product: newProduct) { error in
+                        if let error = error {
+                            statusMessage += "\nОшибка сохранения в Firebase: \(error.localizedDescription)"
+                        } else {
+                            statusMessage += "\nТовар добавлен в Firebase."
+                        }
+                    }
                 } else if candidates.count == 1 {
                     let productToDeduct = candidates.first!
                     productToDeduct.quantity = max(productToDeduct.quantity - qty, 0)
@@ -348,60 +399,23 @@ struct TransactionView: View {
                     newTransaction.date = Date()
                     newTransaction.type = transactionType
                     newTransaction.product = productToDeduct
+                    
+                    try viewContext.save()
+                    statusMessage = "Операция сохранена локально!"
+                    // Обновление товара в Firebase
+                    FirestoreService.shared.saveProduct(product: productToDeduct) { error in
+                        if let error = error {
+                            statusMessage += "\nОшибка обновления в Firebase: \(error.localizedDescription)"
+                        } else {
+                            statusMessage += "\nТовар обновлён в Firebase."
+                        }
+                    }
                 } else {
                     print("Найдено несколько кандидатов, требуется выбор.")
                 }
             } catch {
                 print("Ошибка выборки существующего товара: \(error)")
             }
-        }
-        
-        do {
-            try viewContext.save()
-            productName = ""
-            organization = ""
-            price = ""
-            quantity = ""
-            category = ""
-            target = ""
-            barcode = ""
-            productImage = nil
-            let savedCategoryOptions = UserDefaults.standard.stringArray(forKey: "CategoryOptions") ?? ["Электроника", "Продукты", "Одежда"]
-            categoryOptions = savedCategoryOptions
-            let savedTechniqueOptions = UserDefaults.standard.stringArray(forKey: "TechniqueOptions") ?? ["Компьютер", "Телефон", "Планшет"]
-            techniqueOptions = savedTechniqueOptions
-            let saved = UserDefaults.standard.stringArray(forKey: "CustomFields") ?? ["название", "организация", "цена"]
-            customFields = saved.map { CustomField(name: $0, value: "") }
-            selectedContainer = nil
-        } catch {
-            print("Ошибка сохранения транзакции: \(error)")
-        }
-    }
-    
-    private func processExpense(for product: ProductItem, quantity qty: Int64, expensePurpose: String) {
-        guard qty > 0 else { return }
-        guard product.quantity >= qty else {
-            print("Недостаточно товара для списания")
-            return
-        }
-        
-        product.quantity -= qty
-        if product.quantity == 0 {
-            product.container = nil
-        }
-        
-        let newTransaction = InventoryTransaction(context: viewContext)
-        newTransaction.id = UUID()
-        newTransaction.date = Date()
-        newTransaction.type = transactionType
-        newTransaction.product = product
-        newTransaction.expenseQuantity = qty
-        newTransaction.expensePurpose = expensePurpose
-        
-        do {
-            try viewContext.save()
-        } catch {
-            print("Ошибка сохранения транзакции: \(error)")
         }
     }
 }
