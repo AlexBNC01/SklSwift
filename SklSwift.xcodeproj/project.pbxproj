@@ -16,7 +16,6 @@
 		9F6C52812D772E1300A8101E /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52802D772E1300A8101E /* FirebaseDatabase */; };
 		9F6C52832D772E1300A8101E /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52822D772E1300A8101E /* FirebaseFirestore */; };
 		9F6C52852D772E1300A8101E /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52842D772E1300A8101E /* FirebaseStorage */; };
-		9F6C528E2D77346600A8101E /* Untitled.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6C528D2D77346300A8101E /* Untitled.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,7 +36,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		9F6C528D2D77346300A8101E /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
 		9FC637452D5B79610086F906 /* SklSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SklSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FC637552D5B79630086F906 /* SklSwiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SklSwiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FC6375F2D5B79630086F906 /* SklSwiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SklSwiftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,8 +100,6 @@
 				9FC637582D5B79630086F906 /* SklSwiftTests */,
 				9FC637622D5B79630086F906 /* SklSwiftUITests */,
 				9FC637462D5B79610086F906 /* Products */,
-				CB84678D87F1629DA1F6EDAD /* Pods */,
-				9F6C528D2D77346300A8101E /* Untitled.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -115,13 +111,6 @@
 				9FC6375F2D5B79630086F906 /* SklSwiftUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		CB84678D87F1629DA1F6EDAD /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -265,7 +254,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9F6C528E2D77346600A8101E /* Untitled.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -431,7 +419,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Склад";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Приложению требуется доступ к медиатеке, чтобы вы могли выбирать фотографии и добавлять их к товарам в учётной системе";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Это приложение использует камеру для сканирования штрих-кодов и оборудования.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -464,7 +452,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Склад";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Приложению требуется доступ к медиатеке, чтобы вы могли выбирать фотографии и добавлять их к товарам в учётной системе";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Это приложение использует камеру для сканирования штрих-кодов и оборудования.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
