@@ -1,0 +1,4014 @@
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/ExpenseChoiceView.swift ---
+// файл ExpenseChoiceView
+import SwiftUI
+import CoreData
+
+struct ExpenseChoiceView: View {
+    var candidates: [ProductItem]
+    var expenseQuantity: Int64
+    var onSelect: (ProductItem) -> Void
+    @Environment(\.presentationMode) var presentationMode
+
+    var body: some View {
+        NavigationView {
+            List(candidates, id: \.id) { product in
+                NavigationLink(destination: ExpenseProductDetailView(product: product, expenseQuantity: expenseQuantity, onConfirm: { chosen, quantity in
+                    onSelect(chosen)
+                    presentationMode.wrappedValue.dismiss()
+                })) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(product.name ?? "Нет названия")
+                                .font(.headline)
+                            Text("Доступно: \(product.quantity)")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .navigationTitle("Выберите поставку")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct ExpenseChoiceView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        let product1 = ProductItem(context: context)
+        product1.id = UUID()
+        product1.name = "Поставка 1"
+        product1.quantity = 10
+        
+        let product2 = ProductItem(context: context)
+        product2.id = UUID()
+        product2.name = "Поставка 2"
+        product2.quantity = 20
+        
+        return ExpenseChoiceView(candidates: [product1, product2], expenseQuantity: 5) { chosen in
+            print("Выбрано: \(chosen.name ?? "")")
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/ExpenseProductDetailView.swift ---
+//файл ExpenseProductDetailView
+import SwiftUI
+import CoreData
+
+struct ExpenseProductDetailView: View {
+    var product: ProductItem
+    var expenseQuantity: Int64
+    var onConfirm: (ProductItem, Int64) -> Void
+    @Environment(\.presentationMode) var presentationMode
+    
+    @State private var quantityToDeduct: Int64 = 0
+    @State private var selectedPrice: Double = 0.0
+    @State private var targetForExpense: String = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Отображаем изображение, если есть
+                if let photoData = product.photo, let image = UIImage(data: photoData) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 250)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .cornerRadius(16)
+                        .shadow(radius: 10)
+                        .padding(.horizontal)
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(product.name ?? "Не указано")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    infoRow(title: "Организация", value: product.organization ?? "Не указано")
+                    infoRow(title: "Цена", value: String(format: "%.2f", product.price))
+                    infoRow(title: "Доступно", value: "\(product.quantity)")
+                    infoRow(title: "Категория", value: product.category ?? "Не указано")
+                    infoRow(title: "Для кого", value: product.target ?? "Не указано")
+                    infoRow(title: "Штрих-код", value: product.barcode ?? "Не указано")
+                    
+                    // Ввод данных для расхода
+                    TextField("Количество для списания", value: $quantityToDeduct, format: .number)
+                        .padding()
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    TextField("Цена для списания", value: $selectedPrice, format: .number)
+                        .padding()
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    TextField("Назначение расхода", text: $targetForExpense)
+                        .padding()
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    Button(action: {
+                        // Подтверждение списания
+                        onConfirm(product, quantityToDeduct)
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Text("Подтвердить списание")
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.red)
+                            .cornerRadius(8)
+                    }
+                    .padding(.top, 10)
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 5)
+                .padding(.horizontal)
+                
+                Spacer()
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Детали поставки")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func infoRow(title: String, value: String) -> some View {
+        HStack {
+            Text("\(title):")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.body)
+                .foregroundColor(.primary)
+        }
+    }
+}
+
+struct ExpenseProductDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        let product = ProductItem(context: context)
+        product.id = UUID()
+        product.name = "Пример поставки"
+        product.organization = "Пример организации"
+        product.price = 50.0
+        product.quantity = 15
+        product.category = "Пример категории"
+        product.target = "Пример для кого"
+        product.barcode = "9876543210"
+        product.customFields = ["Цвет": "Синий", "Размер": "L"] as NSDictionary
+        
+        return NavigationView {
+            ExpenseProductDetailView(product: product, expenseQuantity: 5) { chosen, quantity in
+                print("Подтвержден расход для \(chosen.name ?? "") на \(quantity) шт.")
+            }
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/TransactionView.swift ---
+import SwiftUI
+import CoreData
+import FirebaseFirestore
+import FirebaseAuth
+
+enum ExpenseEntryMode: String, CaseIterable, Identifiable {
+    case quick = "Быстрый расход"
+    case choose = "Выбрать поставку"
+    
+    var id: String { self.rawValue }
+}
+
+struct CustomField: Identifiable {
+    var id = UUID()
+    var name: String
+    var value: String
+}
+
+struct TransactionView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    
+    // Основные поля операции
+    @State private var transactionType: String = "Приход" // "Приход" или "Расход"
+    @State private var productName: String = ""
+    @State private var organization: String = ""
+    @State private var price: String = ""
+    @State private var quantity: String = ""
+    @State private var category: String = ""
+    @State private var technique: String = ""
+    @State private var barcode: String = ""
+    @State private var productImage: UIImage? = nil
+    
+    // Флаги для выбора фото
+    @State private var showingImagePicker: Bool = false
+    @State private var showPhotoOptions: Bool = false
+    @State private var imagePickerSourceType: UIImagePickerController.SourceType = .photoLibrary
+    
+    // Дополнительные поля – загружаются из UserDefaults
+    @State private var customFields: [CustomField] = {
+        let saved = UserDefaults.standard.stringArray(forKey: "CustomFields") ?? ["название", "организация", "цена"]
+        return saved.map { CustomField(name: $0, value: "") }
+    }()
+    
+    // Опции для выпадающих списков
+    @State private var categoryOptions: [String] = UserDefaults.standard.stringArray(forKey: "CategoryOptions") ?? ["Электроника", "Продукты", "Одежда"]
+    @State private var techniqueOptions: [String] = UserDefaults.standard.stringArray(forKey: "TechniqueOptions") ?? ["Компьютер", "Телефон", "Планшет"]
+    
+    // Дополнительные переменные
+    @State private var filteredProducts: [ProductItem] = []  // Используется для автозаполнения
+    @FetchRequest(
+        entity: ProductItem.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \ProductItem.name, ascending: true)]
+    ) var allProducts: FetchedResults<ProductItem>
+    
+    @State private var selectedContainer: WarehouseContainer? = nil
+    @FetchRequest(
+        entity: WarehouseContainer.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \WarehouseContainer.name, ascending: true)]
+    ) var availableContainers: FetchedResults<WarehouseContainer>
+    
+    @State private var showingBarcodeScanner: Bool = false
+    @State private var expenseEntryMode: ExpenseEntryMode = .quick
+    @State private var showExpenseSupplySelection: Bool = false
+    @State private var chosenProduct: ProductItem? = nil
+    @State private var showExpenseDetailSheet: Bool = false
+    
+    // Статус сообщения для пользователя
+    @State private var statusMessage: String = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Picker("Тип операции", selection: $transactionType) {
+                    Text("Приход").tag("Приход")
+                    Text("Расход").tag("Расход")
+                }
+                
+                if transactionType == "Расход" {
+                    Section(header: Text("Режим расхода")) {
+                        Picker("Режим", selection: $expenseEntryMode) {
+                            ForEach(ExpenseEntryMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
+                }
+                
+                // Блок для режима "Приход" или "Быстрый расход"
+                if transactionType == "Приход" || (transactionType == "Расход" && expenseEntryMode == .quick) {
+                    Section(header: Text("Информация о товаре")) {
+                        TextField("Название", text: $productName)
+                            .onChange(of: productName) { newValue in
+                                filteredProducts = allProducts.filter { $0.name?.contains(newValue) == true }
+                            }
+                        
+                        // Автоподсказка по наименованию
+                        if !filteredProducts.isEmpty {
+                            List(filteredProducts, id: \.id) { product in
+                                Button(action: {
+                                    productName = product.name ?? ""
+                                }) {
+                                    Text(product.name ?? "Нет названия")
+                                }
+                            }
+                            .frame(height: 150)
+                        }
+                        
+                        TextField("Организация", text: $organization)
+                        TextField("Цена", text: $price)
+                            .keyboardType(.decimalPad)
+                        TextField("Количество", text: $quantity)
+                            .keyboardType(.numberPad)
+                        
+                        HStack {
+                            TextField("Категория", text: $category)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                            Menu {
+                                ForEach(categoryOptions, id: \.self) { option in
+                                    Button(option) { category = option }
+                                }
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        
+                        HStack {
+                            TextField("Техника", text: $technique)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                            Menu {
+                                ForEach(techniqueOptions, id: \.self) { option in
+                                    Button(option) { technique = option }
+                                }
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        
+                        HStack {
+                            TextField("Штрих-код", text: $barcode)
+                                .disabled(true)
+                            Button(action: { showingBarcodeScanner = true }) {
+                                Image(systemName: "barcode.viewfinder")
+                            }
+                        }
+                        
+                        Button(action: { showPhotoOptions = true }) {
+                            HStack {
+                                Text("Добавить фото")
+                                Spacer()
+                                if let image = productImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 50, height: 50)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                        .actionSheet(isPresented: $showPhotoOptions) {
+                            ActionSheet(
+                                title: Text("Выберите источник"),
+                                buttons: actionSheetButtons()
+                            )
+                        }
+                    }
+                    
+                    Section(header: Text("Выбор контейнера")) {
+                        Picker("Контейнер", selection: $selectedContainer) {
+                            Text("Без контейнера").tag(WarehouseContainer?.none)
+                            ForEach(availableContainers, id: \.id) { container in
+                                Text(container.name ?? "Без названия").tag(Optional(container))
+                            }
+                        }
+                    }
+                    
+                    Section(header: Text("Дополнительные поля")) {
+                        ForEach($customFields) { $field in
+                            TextField(field.name, text: $field.value)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        }
+                    }
+                    
+                    Button("Сохранить операцию") {
+                        saveTransactionQuickExpense()
+                    }
+                }
+                
+                // Блок для режима "Расход" + "Выбрать поставку"
+                else if transactionType == "Расход" && expenseEntryMode == .choose {
+                    Section {
+                        Button(action: {
+                            showExpenseSupplySelection = true
+                        }) {
+                            HStack {
+                                Text(chosenProduct != nil ? "Выбрано: \(chosenProduct?.name ?? "")" : "Выбрать поставку")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                        }
+                    }
+                }
+                
+                // Сообщение пользователю
+                if !statusMessage.isEmpty {
+                    Section {
+                        Text(statusMessage)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            .navigationTitle("Приход/Расход")
+            // Сканер штрих-кодов
+            .sheet(isPresented: $showingBarcodeScanner) {
+                BarcodeScannerView { scannedCode in
+                    barcode = scannedCode
+                    showingBarcodeScanner = false
+                    autoFillProductData()
+                }
+            }
+            // Выбор товара для списания
+            .sheet(isPresented: $showExpenseSupplySelection) {
+                ExpenseSupplySelectionView { selected in
+                    chosenProduct = selected
+                    showExpenseSupplySelection = false
+                    showExpenseDetailSheet = true
+                }
+            }
+            // Ввод количества и причины списания
+            .sheet(isPresented: $showExpenseDetailSheet) {
+                if let product = chosenProduct {
+                    ExpenseSupplyDetailView(product: product) { chosen, qty, purpose in
+                        confirmExpense(product: chosen, quantity: qty, purpose: purpose)
+                        showExpenseDetailSheet = false
+                        chosenProduct = nil
+                    }
+                }
+            }
+            // Sheet для показа ImagePicker
+            .sheet(isPresented: $showingImagePicker) {
+                ImagePicker(sourceType: imagePickerSourceType, image: $productImage)
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func actionSheetButtons() -> [ActionSheet.Button] {
+        var buttons: [ActionSheet.Button] = []
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            buttons.append(.default(Text("Сделать фото")) {
+                imagePickerSourceType = .camera
+                showingImagePicker = true
+            })
+        }
+        buttons.append(.default(Text("Выбрать из галереи")) {
+            imagePickerSourceType = .photoLibrary
+            showingImagePicker = true
+        })
+        buttons.append(.cancel())
+        return buttons
+    }
+    
+    private func autoFillProductData() {
+        guard !barcode.isEmpty else { return }
+        let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+        if let user = Auth.auth().currentUser {
+            request.predicate = NSPredicate(format: "barcode == %@ AND ownerId == %@", barcode, user.uid)
+        } else {
+            request.predicate = NSPredicate(format: "barcode == %@ AND ownerId == nil", barcode)
+        }
+        do {
+            if let existingProduct = try viewContext.fetch(request).first {
+                productName = existingProduct.name ?? ""
+                organization = existingProduct.organization ?? ""
+                price = existingProduct.price != 0 ? String(existingProduct.price) : ""
+                quantity = String(existingProduct.quantity)
+                category = existingProduct.category ?? ""
+                technique = existingProduct.target ?? ""
+                if let data = existingProduct.photo, let image = UIImage(data: data) {
+                    productImage = image
+                }
+            }
+        } catch {
+            print("Ошибка автозаполнения: \(error)")
+        }
+    }
+    
+    private func saveTransactionQuickExpense() {
+        guard let qty = Int64(quantity) else {
+            print("Неверное значение количества")
+            return
+        }
+        
+        if transactionType == "Приход" {
+            let newProduct = ProductItem(context: viewContext)
+            newProduct.id = UUID()
+            newProduct.name = productName
+            newProduct.organization = organization
+            newProduct.price = Double(price) ?? 0
+            newProduct.quantity = qty
+            newProduct.category = category
+            newProduct.target = technique
+            newProduct.barcode = barcode
+            if let image = productImage, let data = image.jpegData(compressionQuality: 0.8) {
+                newProduct.photo = data
+            }
+            newProduct.container = selectedContainer
+            
+            // Если пользователь авторизован – сохраняем uid
+            if let user = Auth.auth().currentUser {
+                newProduct.ownerId = user.uid
+            }
+            
+            var customDict: [String: String] = [:]
+            for field in customFields {
+                if !field.value.isEmpty {
+                    customDict[field.name] = field.value
+                }
+            }
+            newProduct.customFields = customDict as NSDictionary
+            
+            let newTransaction = InventoryTransaction(context: viewContext)
+            newTransaction.id = UUID()
+            newTransaction.date = Date()
+            newTransaction.type = transactionType
+            newTransaction.product = newProduct
+            if let user = Auth.auth().currentUser {
+                newTransaction.ownerId = user.uid
+            }
+            
+            do {
+                try viewContext.save()
+                statusMessage = "Операция сохранена локально!"
+                
+                if let user = Auth.auth().currentUser {
+                    // Сохраняем товар в Firebase
+                    FirestoreService.shared.saveOrUpdateProduct(product: newProduct,
+                                                                for: user,
+                                                                image: productImage) { error in
+                        if let error = error {
+                            statusMessage += "\nОшибка сохранения товара в Firebase: \(error.localizedDescription)"
+                        } else {
+                            statusMessage += "\nТовар сохранён в Firebase."
+                        }
+                    }
+                    // Сохраняем транзакцию в Firebase
+                    FirestoreService.shared.saveTransaction(newTransaction, for: user) { error in
+                        if let error = error {
+                            statusMessage += "\nОшибка сохранения транзакции в Firebase: \(error.localizedDescription)"
+                        } else {
+                            statusMessage += "\nТранзакция сохранена в Firebase."
+                        }
+                    }
+                }
+            } catch {
+                print("Ошибка сохранения транзакции: \(error)")
+            }
+            
+        } else if transactionType == "Расход" && expenseEntryMode == .quick {
+            guard !barcode.isEmpty else {
+                statusMessage = "Штрих-код не задан, невозможно выполнить списание."
+                return
+            }
+            let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+            if let user = Auth.auth().currentUser {
+                request.predicate = NSPredicate(format: "barcode == %@ AND ownerId == %@", barcode, user.uid)
+            } else {
+                request.predicate = NSPredicate(format: "barcode == %@ AND ownerId == nil", barcode)
+            }
+            do {
+                let results = try viewContext.fetch(request)
+                let candidates = results.filter { $0.quantity > 0 }
+                if candidates.isEmpty {
+                    statusMessage = "Товар для списания не найден или его количество равно нулю."
+                } else if candidates.count == 1 {
+                    let productToDeduct = candidates.first!
+                    if qty > productToDeduct.quantity {
+                        statusMessage = "Недостаточно товара для списания."
+                        return
+                    }
+                    productToDeduct.quantity -= qty
+                    
+                    let newTransaction = InventoryTransaction(context: viewContext)
+                    newTransaction.id = UUID()
+                    newTransaction.date = Date()
+                    newTransaction.type = transactionType
+                    newTransaction.product = productToDeduct
+                    newTransaction.expenseQuantity = qty
+                    newTransaction.expensePurpose = "Быстрый расход"
+                    if let user = Auth.auth().currentUser {
+                        newTransaction.ownerId = user.uid
+                    }
+                    
+                    try viewContext.save()
+                    statusMessage = "Операция сохранена локально!"
+                    
+                    if let user = Auth.auth().currentUser {
+                        // Обновляем товар в Firebase
+                        FirestoreService.shared.saveOrUpdateProduct(product: productToDeduct,
+                                                                    for: user,
+                                                                    image: productImage) { error in
+                            if let error = error {
+                                statusMessage += "\nОшибка обновления товара в Firebase: \(error.localizedDescription)"
+                            } else {
+                                statusMessage += "\nТовар обновлён в Firebase."
+                            }
+                        }
+                        // Сохраняем транзакцию в Firebase
+                        FirestoreService.shared.saveTransaction(newTransaction, for: user) { error in
+                            if let error = error {
+                                statusMessage += "\nОшибка сохранения транзакции в Firebase: \(error.localizedDescription)"
+                            } else {
+                                statusMessage += "\nТранзакция сохранена в Firebase."
+                            }
+                        }
+                    }
+                } else {
+                    statusMessage = "Найдено несколько кандидатов, требуется выбор."
+                }
+            } catch {
+                statusMessage = "Ошибка выборки товара: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    private func confirmExpense(product: ProductItem, quantity: Int64, purpose: String) {
+        guard product.quantity >= quantity else {
+            statusMessage = "Недостаточно остатков для списания."
+            return
+        }
+        
+        product.quantity -= quantity
+        
+        let newTransaction = InventoryTransaction(context: viewContext)
+        newTransaction.id = UUID()
+        newTransaction.date = Date()
+        newTransaction.type = "Расход"
+        newTransaction.expenseQuantity = quantity
+        newTransaction.expensePurpose = purpose
+        newTransaction.product = product
+        if let user = Auth.auth().currentUser {
+            newTransaction.ownerId = user.uid
+        }
+        
+        do {
+            try viewContext.save()
+            statusMessage = "Расход успешно сохранён!"
+            
+            if let user = Auth.auth().currentUser {
+                // Обновляем товар в Firebase
+                FirestoreService.shared.saveOrUpdateProduct(product: product, for: user, image: nil) { error in
+                    if let error = error {
+                        statusMessage += "\nОшибка обновления товара в Firebase: \(error.localizedDescription)"
+                    } else {
+                        statusMessage += "\nТовар обновлён в Firebase."
+                    }
+                }
+                // Сохраняем транзакцию в Firebase
+                FirestoreService.shared.saveTransaction(newTransaction, for: user) { error in
+                    if let error = error {
+                        statusMessage += "\nОшибка сохранения транзакции в Firebase: \(error.localizedDescription)"
+                    } else {
+                        statusMessage += "\nТранзакция сохранена в Firebase."
+                    }
+                }
+            }
+            
+        } catch {
+            print("Ошибка сохранения транзакции: \(error)")
+            statusMessage = "Ошибка сохранения транзакции: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct TransactionView_Previews: PreviewProvider {
+    static var previews: some View {
+        TransactionView().environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/ExpenseSupplySelectionView.swift ---
+//
+//  файл ExpenseSupplySelectionView.swift
+//  SklSwift
+//
+import SwiftUI
+import CoreData
+
+struct ExpenseSupplySelectionView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.presentationMode) var presentationMode
+    
+    // Получаем все товары, у которых доступно списание (количество > 0)
+    @FetchRequest(
+        entity: ProductItem.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \ProductItem.name, ascending: true)],
+        predicate: NSPredicate(format: "quantity > 0")
+    ) var availableProducts: FetchedResults<ProductItem>
+    
+    @State private var searchText: String = ""
+    @State private var selectedCategory: String = "Все"
+    
+    var onSelect: (ProductItem) -> Void
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                SearchBar(text: $searchText, placeholder: "Поиск товара")
+                    .padding(.horizontal)
+                
+                // Получаем список категорий из доступных товаров
+                let categories = Array(Set(availableProducts.compactMap { $0.category })).sorted()
+                if !categories.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            Button(action: { selectedCategory = "Все" }) {
+                                Text("Все")
+                                    .padding(8)
+                                    .background(selectedCategory == "Все" ? Color.blue : Color.gray.opacity(0.3))
+                                    .cornerRadius(8)
+                                    .foregroundColor(.white)
+                            }
+                            ForEach(categories, id: \.self) { cat in
+                                Button(action: {
+                                    selectedCategory = cat
+                                }) {
+                                    Text(cat)
+                                        .padding(8)
+                                        .background(selectedCategory == cat ? Color.blue : Color.gray.opacity(0.3))
+                                        .cornerRadius(8)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                
+                List {
+                    ForEach(filteredProducts, id: \.id) { product in
+                        Button(action: {
+                            onSelect(product)
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(product.name ?? "Нет названия")
+                                    Text("Доступно: \(product.quantity)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Выбрать поставку")
+            .navigationBarItems(trailing: Button("Отмена") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+    
+    // Фильтрация товаров по поиску и выбранной категории
+    var filteredProducts: [ProductItem] {
+        availableProducts.filter { product in
+            let matchesSearch = searchText.isEmpty || (product.name?.lowercased().contains(searchText.lowercased()) ?? false)
+            let matchesCategory = (selectedCategory == "Все") || (product.category == selectedCategory)
+            return matchesSearch && matchesCategory
+        }
+    }
+}
+
+struct ExpenseSupplySelectionView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        ExpenseSupplySelectionView { _ in }
+            .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/ExpenseSupplyDetailView.swift ---
+//
+// файл  ExpenseSupplyDetailView.swift
+//  SklSwift
+//
+import SwiftUI
+import CoreData
+
+struct ExpenseSupplyDetailView: View {
+    @Environment(\.presentationMode) var presentationMode
+    var product: ProductItem
+    var onConfirm: (ProductItem, Int64, String) -> Void
+    
+    @State private var quantityToExpense: String = ""
+    @State private var expensePurpose: String = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Информация о поставке")) {
+                    Text("Название: \(product.name ?? "Нет названия")")
+                    Text("Доступно: \(product.quantity)")
+                }
+                
+                Section(header: Text("Детали списания")) {
+                    TextField("Количество для списания", text: $quantityToExpense)
+                        .keyboardType(.numberPad)
+                    TextField("Назначение расхода", text: $expensePurpose)
+                }
+                
+                Button(action: {
+                    guard let qty = Int64(quantityToExpense), qty > 0 else {
+                        print("Неверное количество")
+                        return
+                    }
+                    onConfirm(product, qty, expensePurpose)
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    Text("Подтвердить списание")
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .cornerRadius(8)
+                }
+            }
+            .navigationTitle("Списание поставки")
+            .navigationBarItems(trailing: Button("Отмена") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+}
+
+struct ExpenseSupplyDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        let product = ProductItem(context: context)
+        product.id = UUID()
+        product.name = "Тестовый товар"
+        product.quantity = 50
+        return ExpenseSupplyDetailView(product: product) { prod, qty, purpose in
+            print("Списано \(qty) шт. с назначением: \(purpose)")
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/WriteOffProductView.swift ---
+// файл WriteOffProductView
+import SwiftUI
+import CoreData
+
+struct WriteOffProductView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.presentationMode) var presentationMode
+    
+    var product: ProductItem
+    var onCompletion: (() -> Void)? = nil
+
+    @State private var quantityToWriteOff: Int64 = 0
+    @State private var writeOffPurpose: String = ""
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Информация о товаре")) {
+                Text(product.name ?? "Нет названия")
+                Text("Доступно: \(product.quantity)")
+            }
+            
+            Section(header: Text("Детали списания")) {
+                TextField("Количество для списания", value: $quantityToWriteOff, format: .number)
+                    .keyboardType(.numberPad)
+                TextField("Назначение списания", text: $writeOffPurpose)
+            }
+            
+            Button(action: {
+                writeOffProduct()
+            }) {
+                Text("Подтвердить списание")
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red)
+                    .cornerRadius(8)
+            }
+        }
+        .navigationTitle("Списание товара")
+    }
+    
+    private func writeOffProduct() {
+        guard quantityToWriteOff > 0 else { return }
+        guard product.quantity >= quantityToWriteOff else {
+            // Можно добавить предупреждение о том, что списывается больше, чем доступно
+            return
+        }
+        
+        // Уменьшаем количество товара
+        product.quantity -= quantityToWriteOff
+        
+        // Создаем транзакцию списания
+        let transaction = InventoryTransaction(context: viewContext)
+        transaction.id = UUID()
+        transaction.date = Date()  // Устанавливаем текущую дату
+        transaction.type = "Списание"
+        transaction.product = product
+        // Записываем дополнительные параметры
+        transaction.expenseQuantity = quantityToWriteOff
+        transaction.expensePurpose = writeOffPurpose
+        
+        do {
+            try viewContext.save()
+            presentationMode.wrappedValue.dismiss()
+            onCompletion?()
+        } catch {
+            print("Ошибка сохранения транзакции: \(error)")
+        }
+    }
+}
+
+struct WriteOffProductView_Previews: PreviewProvider {
+    static var previews: some View {
+        // Для превью создаем тестовый объект
+        let context = PersistenceController.shared.container.viewContext
+        let product = ProductItem(context: context)
+        product.id = UUID()
+        product.name = "Пример товара"
+        product.quantity = 20
+        return NavigationView {
+            WriteOffProductView(product: product)
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Transaction/TransactionDetailView.swift ---
+//файл TransactionDetailView
+import SwiftUI
+import CoreData
+
+struct TransactionDetailView: View {
+    var transaction: InventoryTransaction
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Карточка с информацией об операции
+                transactionInfoCard
+                
+                // Карточка с информацией о товаре
+                if let product = transaction.product {
+                    productInfoCard(product: product)
+                } else {
+                    Text("Нет данных о товаре")
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            .padding()
+        }
+        .background(Color(UIColor.systemGroupedBackground).edgesIgnoringSafeArea(.all))
+        .navigationTitle("Детали операции")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    var transactionInfoCard: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text("Тип операции:")
+                    .bold()
+                Spacer()
+                Text(transaction.type ?? "")
+                    .foregroundColor(transaction.type == "Приход" ? .green : .red)
+            }
+            if let date = transaction.date {
+                HStack {
+                    Text("Дата:")
+                        .bold()
+                    Spacer()
+                    Text("\(date, formatter: itemFormatter)")
+                        .foregroundColor(.secondary)
+                }
+            }
+            if transaction.type == "Расход" {
+                HStack {
+                    Text("Списано:")
+                        .bold()
+                    Spacer()
+                    Text("\(transaction.expenseQuantity)")
+                        .foregroundColor(.secondary)
+                }
+                if let purpose = transaction.expensePurpose, !purpose.isEmpty {
+                    HStack {
+                        Text("Причина:")
+                            .bold()
+                        Spacer()
+                        Text(purpose)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    func productInfoCard(product: ProductItem) -> some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Информация о товаре")
+                .font(.headline)
+                .padding(.bottom, 5)
+            
+            if let photoData = product.photo,
+               let image = UIImage(data: photoData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .cornerRadius(10)
+            }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                detailRow(title: "Название", value: product.name)
+                detailRow(title: "Организация", value: product.organization)
+                detailRow(title: "Цена", value: String(format: "%.2f", product.price))
+                detailRow(title: "Остаток", value: "\(product.quantity)")
+                detailRow(title: "Категория", value: product.category)
+                detailRow(title: "Для кого", value: product.target)
+                detailRow(title: "Штрих-код", value: product.barcode)
+            }
+            
+            if let custom = product.customFields as? [String: String], !custom.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Дополнительные поля:")
+                        .bold()
+                    ForEach(custom.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        detailRow(title: key, value: value)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    func detailRow(title: String, value: String?) -> some View {
+        HStack {
+            Text("\(title):")
+                .bold()
+            Spacer()
+            Text(value ?? "Не указано")
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+private let itemFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter
+}()
+
+struct TransactionDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        
+        let transaction = InventoryTransaction(context: context)
+        transaction.id = UUID()
+        transaction.date = Date()
+        transaction.type = "Расход"
+        transaction.expenseQuantity = 5
+        transaction.expensePurpose = "Испорчено"
+        
+        let product = ProductItem(context: context)
+        product.id = UUID()
+        product.name = "Пример товара"
+        product.organization = "Организация"
+        product.price = 150.0
+        product.quantity = 20
+        product.category = "Электроника"
+        product.target = "Клиент"
+        product.barcode = "9876543210"
+        product.customFields = ["Цвет": "Синий", "Модель": "X100"] as NSDictionary
+        
+        transaction.product = product
+        
+        return NavigationView {
+            TransactionDetailView(transaction: transaction)
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Settings/SettingsView.swift ---
+import SwiftUI
+import FirebaseAuth
+
+struct SettingsView: View {
+    @State private var isAuthenticated: Bool = Auth.auth().currentUser != nil
+    @State private var showAuthSheet: Bool = false
+    @State private var errorMessage: String? = nil
+    
+    // Следим за SessionManager
+    @ObservedObject var sessionManager = SessionManager.shared
+
+    var body: some View {
+        NavigationView {
+            List {
+                // Раздел "Аккаунт"
+                Section(header: Text("Аккаунт")) {
+                    if !sessionManager.isGuest {
+                        // Пользователь авторизован
+                        HStack {
+                            Text("Пользователь: \(sessionManager.currentUser?.email ?? "")")
+                            Spacer()
+                            Button("Выйти") {
+                                sessionManager.signOut { result in
+                                    switch result {
+                                    case .success:
+                                        isAuthenticated = false
+                                    case .failure(let error):
+                                        errorMessage = error.localizedDescription
+                                    }
+                                }
+                            }
+                            .foregroundColor(.red)
+                        }
+                    } else {
+                        // Гость
+                        Button("Войти / Зарегистрироваться") {
+                            showAuthSheet = true
+                        }
+                    }
+                }
+                
+                // Существующий раздел настроек
+                Section(header: Text("Настройки приложения")) {
+                    NavigationLink(destination: ProductFieldsSettingsView()) {
+                        Label("Поля для товара", systemImage: "square.and.pencil")
+                    }
+                    NavigationLink(destination: CategoryOptionsSettingsView()) {
+                        Label("Опции категории", systemImage: "list.bullet")
+                    }
+                    NavigationLink(destination: TechniqueOptionsSettingsView()) {
+                        Label("Опции техники", systemImage: "list.bullet")
+                    }
+                    NavigationLink(destination: ExportHistoryView()) {
+                        Label("Экспорт истории", systemImage: "tray.and.arrow.down")
+                    }
+                    NavigationLink(destination: DataBackupSettingsView()) {
+                        Label("Резервное копирование", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("Настройки")
+            .alert(isPresented: Binding<Bool>(
+                get: { self.errorMessage != nil },
+                set: { newValue in if !newValue { self.errorMessage = nil } }
+            )) {
+                Alert(title: Text("Ошибка"),
+                      message: Text(errorMessage ?? ""),
+                      dismissButton: .default(Text("OK")))
+            }
+            .sheet(isPresented: $showAuthSheet, onDismiss: {
+                isAuthenticated = !sessionManager.isGuest
+            }) {
+                AuthViewWrapper()
+            }
+        }
+        .onAppear {
+            isAuthenticated = !sessionManager.isGuest
+        }
+    }
+}
+
+struct SettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Settings/ProductFieldsSettingsView.swift ---
+//файл ProductFieldsSettingsView
+import SwiftUI
+
+struct ProductFieldsSettingsView: View {
+    @State private var customFieldName: String = ""
+    @State private var customFields: [String] = UserDefaults.standard.stringArray(forKey: "CustomFields") ?? ["название", "организация", "цена"]
+
+    var body: some View {
+        Form {
+            Section(header: Text("Поля для товара")) {
+                List {
+                    ForEach(customFields, id: \.self) { field in
+                        Text(field)
+                    }
+                    .onDelete(perform: deleteField)
+                }
+                HStack {
+                    TextField("Новое поле", text: $customFieldName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button("Добавить") {
+                        addField()
+                    }
+                    .disabled(customFieldName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .navigationTitle("Поля для товара")
+        .onDisappear {
+            UserDefaults.standard.set(customFields, forKey: "CustomFields")
+        }
+    }
+    
+    private func addField() {
+        let trimmed = customFieldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        customFields.append(trimmed)
+        customFieldName = ""
+    }
+    
+    private func deleteField(at offsets: IndexSet) {
+        customFields.remove(atOffsets: offsets)
+    }
+}
+
+struct ProductFieldsSettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            ProductFieldsSettingsView()
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Settings/TechniqueOptionsSettingsView.swift ---
+//
+//  файл TechniqueOptionsSettingsView.swift
+//  SklSwift
+//
+import SwiftUI
+
+struct TechniqueOptionsSettingsView: View {
+    @State private var newOption: String = ""
+    @State private var options: [String] = UserDefaults.standard.stringArray(forKey: "TechniqueOptions") ?? ["Компьютер", "Телефон", "Планшет"]
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Опции для поля 'Техника'")) {
+                List {
+                    ForEach(options, id: \.self) { option in
+                        Text(option)
+                    }
+                    .onDelete(perform: deleteOption)
+                }
+                HStack {
+                    TextField("Новая опция", text: $newOption)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button("Добавить") {
+                        addOption()
+                    }
+                    .disabled(newOption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .navigationTitle("Опции техники")
+        .onDisappear {
+            UserDefaults.standard.set(options, forKey: "TechniqueOptions")
+        }
+    }
+    
+    private func addOption() {
+        let trimmed = newOption.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        options.append(trimmed)
+        newOption = ""
+    }
+    
+    private func deleteOption(at offsets: IndexSet) {
+        options.remove(atOffsets: offsets)
+    }
+}
+
+struct TechniqueOptionsSettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            TechniqueOptionsSettingsView()
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Settings/CategoryOptionsSettingsView.swift ---
+//
+//  файл CategoryOptionsSettingsView.swift
+//  SklSwift
+//
+import SwiftUI
+
+struct CategoryOptionsSettingsView: View {
+    @State private var newOption: String = ""
+    @State private var options: [String] = UserDefaults.standard.stringArray(forKey: "CategoryOptions") ?? ["Электроника", "Продукты", "Одежда"]
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Опции для поля 'Категория'")) {
+                List {
+                    ForEach(options, id: \.self) { option in
+                        Text(option)
+                    }
+                    .onDelete(perform: deleteOption)
+                }
+                HStack {
+                    TextField("Новая опция", text: $newOption)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button("Добавить") {
+                        addOption()
+                    }
+                    .disabled(newOption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .navigationTitle("Опции категории")
+        .onDisappear {
+            UserDefaults.standard.set(options, forKey: "CategoryOptions")
+        }
+    }
+    
+    private func addOption() {
+        let trimmed = newOption.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        options.append(trimmed)
+        newOption = ""
+    }
+    
+    private func deleteOption(at offsets: IndexSet) {
+        options.remove(atOffsets: offsets)
+    }
+}
+
+struct CategoryOptionsSettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            CategoryOptionsSettingsView()
+        }
+    }
+}
+
+--- /Users/halil/Desktop/Sklswift/Sklswift/Settings/DataBackupSettingsView.swift ---
+// файл DataBackupSettingsView
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct DataBackupSettingsView: View {
+    @State private var showExportShareSheet = false
+    @State private var exportFileURL: URL?
+    
+    @State private var showDocumentPicker = false
+    @State private var alertMessage: String?
+    @State private var showAlert = false
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Резервное копирование данных")) {
+                Button("Экспортировать данные") {
+                    if let url = DataBackupManager.exportData() {
+                        exportFileURL = url
+                        showExportShareSheet = true
+                    } else {
+                        alertMessage = "Ошибка экспорта данных"
+                        showAlert = true
+                    }
+                }
+                Button("Импортировать данные") {
+                    showDocumentPicker = true
+                }
+            }
+        }
+        .navigationTitle("Резервное копирование")
+        .sheet(isPresented: $showExportShareSheet, onDismiss: {
+            if let url = exportFileURL {
+                try? FileManager.default.removeItem(at: url)
+                exportFileURL = nil
+            }
+        }) {
+            if let url = exportFileURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .sheet(isPresented: $showDocumentPicker) {
+            DocumentPicker(documentTypes: [UTType.json]) { result in
+                switch result {
+                case .success(let url):
+                    DataBackupManager.importData(from: url)
+                    alertMessage = "Импорт данных выполнен успешно."
+                case .failure(let error):
+                    alertMessage = "Ошибка импорта: \(error.localizedDescription)"
+                }
+                showAlert = true
+            }
+        }
+        .alert(isPresented: $showAlert) {
+            Alert(title: Text("Сообщение"),
+                  message: Text(alertMessage ?? ""),
+                  dismissButton: .default(Text("OK")))
+        }
+    }
+}
+
+struct DataBackupSettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            DataBackupSettingsView()
+        }
+    }
+}
+
+// Обёртка для UIDocumentPickerViewController, позволяющая выбрать JSON-файл
+struct DocumentPicker: UIViewControllerRepresentable {
+    var documentTypes: [UTType]
+    var onPick: (Result<URL, Error>) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let controller = UIDocumentPickerViewController(forOpeningContentTypes: documentTypes, asCopy: true)
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) { }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick)
+    }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        var onPick: (Result<URL, Error>) -> Void
+        
+        init(onPick: @escaping (Result<URL, Error>) -> Void) {
+            self.onPick = onPick
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            if let url = urls.first {
+                onPick(.success(url))
+            }
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(.failure(NSError(domain: "DocumentPicker",
+                                      code: -1,
+                                      userInfo: [NSLocalizedDescriptionKey: "Cancelled"])))
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/App/MainTabView.swift ---
+// файл MainTabView
+import SwiftUI
+
+struct MainTabView: View {
+    var body: some View {
+        TabView {
+            WarehouseView()
+                .tabItem {
+                    Label("Склад", systemImage: "house")
+                }
+            TransactionView()
+                .tabItem {
+                    Label("Приход/Расход", systemImage: "arrow.up.arrow.down")
+                }
+            HistoryView()
+                .tabItem {
+                    Label("История", systemImage: "clock")
+                }
+            SettingsView()
+                .tabItem {
+                    Label("Настройки", systemImage: "gear")
+                }
+            AnalyticsView()
+                .tabItem {
+                    Label("Аналитика", systemImage: "chart.bar")
+                }
+        }
+    }
+}
+
+struct MainTabView_Previews: PreviewProvider {
+    static var previews: some View {
+        MainTabView()
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Auth/AuthViewWrapper.swift ---
+//файл AuthViewWrapper
+import SwiftUI
+import FirebaseAuth
+
+struct AuthViewWrapper: View {
+    @Environment(\.presentationMode) var presentationMode
+    @State private var isLoginMode: Bool = true  // true = Вход, false = Регистрация
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var errorMessage: String? = nil
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 16) {
+                Picker("Опция", selection: $isLoginMode) {
+                    Text("Войти").tag(true)
+                    Text("Регистрация").tag(false)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+                
+                TextField("Email", text: $email)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                
+                SecureField("Пароль", text: $password)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+                
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+                
+                Button(action: {
+                    handleAuthAction()
+                }) {
+                    Text(isLoginMode ? "Войти" : "Зарегистрироваться")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical)
+            .navigationTitle(isLoginMode ? "Вход" : "Регистрация")
+            .navigationBarItems(trailing: Button("Отмена") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+    
+    private func handleAuthAction() {
+        errorMessage = nil
+        if isLoginMode {
+            // ВХОД через SessionManager
+            SessionManager.shared.signIn(email: email, password: password) { result in
+                switch result {
+                case .success(_):
+                    presentationMode.wrappedValue.dismiss()
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                    // В случае неудачи восстанавливаем гостевые данные (SessionManager это уже делает)
+                }
+            }
+        } else {
+            // РЕГИСТРАЦИЯ - после успешного createUser вызываем сразу SessionManager.signIn
+            AuthService.shared.signUp(email: email, password: password) { result in
+                switch result {
+                case .success(_):
+                    // После успешной регистрации сразу залогинимся
+                    SessionManager.shared.signIn(email: email, password: password) { signInResult in
+                        switch signInResult {
+                        case .success(_):
+                            presentationMode.wrappedValue.dismiss()
+                        case .failure(let err):
+                            errorMessage = err.localizedDescription
+                        }
+                    }
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Auth/AuthView.swift ---
+import SwiftUI
+import FirebaseAuth
+
+struct AuthView: View {
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var errorMessage: String?
+    @State private var isAuthenticated: Bool = false
+    
+    var body: some View {
+        // Если пользователь уже авторизован или вход произошёл прямо сейчас,
+        // отображаем MainTabView, иначе - экран логина/регистрации.
+        if isAuthenticated || Auth.auth().currentUser != nil {
+            MainTabView()
+        } else {
+            VStack(spacing: 16) {
+                Text("Авторизация")
+                    .font(.largeTitle)
+                    .padding(.bottom, 20)
+                
+                TextField("Email", text: $email)
+                    .autocapitalization(.none)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                
+                SecureField("Пароль", text: $password)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                }
+                
+                HStack(spacing: 20) {
+                    Button("Войти") {
+                        AuthService.shared.signIn(email: email, password: password) { result in
+                            switch result {
+                            case .success:
+                                isAuthenticated = true
+                            case .failure(let error):
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                    }
+                    Button("Регистрация") {
+                        AuthService.shared.signUp(email: email, password: password) { result in
+                            switch result {
+                            case .success:
+                                isAuthenticated = true
+                            case .failure(let error):
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+struct AuthView_Previews: PreviewProvider {
+    static var previews: some View {
+        AuthView()
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/SklSwiftApp.swift ---
+// файл SklSwiftApp
+import SwiftUI
+import Firebase
+
+@main
+struct SklSwiftApp: App {
+    let persistenceController = PersistenceController.shared
+    
+    init() {
+        FirebaseApp.configure()
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            MainTabView()
+                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                // Если хотим, можем передавать SessionManager как environmentObject
+                .environmentObject(SessionManager.shared)
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Shared/FirestoreCheckView.swift ---
+//
+//  файл FirestoreCheckView.swift
+//  SklSwift
+//
+import SwiftUI
+import Firebase
+import FirebaseFirestore
+
+struct FirestoreCheckView: View {
+    @State private var statusMessage: String = ""
+    private let db = Firestore.firestore()
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Проверка Firestore")
+                .font(.largeTitle)
+                .padding(.top, 40)
+
+            // Кнопка для сохранения тестового документа
+            Button("Сохранить тестовый документ") {
+                saveTestDocument()
+            }
+            .padding()
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(8)
+
+            // Кнопка для загрузки тестового документа
+            Button("Загрузить тестовый документ") {
+                loadTestDocument()
+            }
+            .padding()
+            .background(Color.green.opacity(0.1))
+            .cornerRadius(8)
+
+            // Статус-сообщение для отображения результата
+            Text(statusMessage)
+                .foregroundColor(.blue)
+                .padding(.horizontal)
+                .multilineTextAlignment(.center)
+
+            Spacer()
+        }
+        .padding()
+    }
+
+    // Запись тестовых данных в Firestore
+    private func saveTestDocument() {
+        // Примерные данные
+        let testData: [String: Any] = [
+            "timestamp": Timestamp(date: Date()),
+            "message": "Привет, Firestore!"
+        ]
+
+        // Сохраняем в коллекцию "test", документ "testDoc"
+        db.collection("test").document("testDoc").setData(testData) { error in
+            if let error = error {
+                statusMessage = "Ошибка при сохранении: \(error.localizedDescription)"
+            } else {
+                statusMessage = "Документ успешно сохранён!"
+            }
+        }
+    }
+
+    // Загрузка тестовых данных из Firestore
+    private func loadTestDocument() {
+        db.collection("test").document("testDoc").getDocument { snapshot, error in
+            if let error = error {
+                statusMessage = "Ошибка при загрузке: \(error.localizedDescription)"
+            } else if let data = snapshot?.data() {
+                statusMessage = "Документ загружен: \(data)"
+            } else {
+                statusMessage = "Документ не найден!"
+            }
+        }
+    }
+}
+
+struct FirestoreCheckView_Previews: PreviewProvider {
+    static var previews: some View {
+        FirestoreCheckView()
+    }
+}
+
+--- /Users/halil/Desktop/Sklswift/Sklswift/Shared/ImagePicker.swift ---
+// файл ImagePicker
+import SwiftUI
+import UIKit
+
+struct ImagePicker: UIViewControllerRepresentable {
+    @Environment(\.presentationMode) var presentationMode
+    var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    @Binding var image: UIImage?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType  // устанавливаем sourceType
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) { }
+
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        init(parent: ImagePicker) {
+            self.parent = parent
+        }
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let uiImage = info[.originalImage] as? UIImage {
+                parent.image = uiImage
+            }
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Shared/SearchBar.swift ---
+//файл SearchBar
+import SwiftUI
+
+struct SearchBar: UIViewRepresentable {
+    @Binding var text: String
+    var placeholder: String = "Search"
+    
+    class Coordinator: NSObject, UISearchBarDelegate {
+        @Binding var text: String
+        
+        init(text: Binding<String>) {
+            _text = text
+        }
+        
+        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+            text = searchText
+        }
+        
+        func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+            searchBar.resignFirstResponder()
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+    
+    func makeUIView(context: Context) -> UISearchBar {
+        let searchBar = UISearchBar(frame: .zero)
+        searchBar.delegate = context.coordinator
+        searchBar.placeholder = placeholder
+        return searchBar
+    }
+    
+    func updateUIView(_ uiView: UISearchBar, context: Context) {
+        uiView.text = text
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Models/Models.swift ---
+import Foundation
+import CoreData
+
+@objc(WarehouseContainer)
+public class WarehouseContainer: NSManagedObject { }
+
+extension WarehouseContainer {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<WarehouseContainer> {
+        NSFetchRequest<WarehouseContainer>(entityName: "WarehouseContainer")
+    }
+    
+    @NSManaged public var id: UUID?
+    @NSManaged public var name: String?
+    @NSManaged public var products: NSSet?
+}
+
+@objc(ProductItem)
+public class ProductItem: NSManagedObject { }
+
+extension ProductItem {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<ProductItem> {
+        NSFetchRequest<ProductItem>(entityName: "ProductItem")
+    }
+    
+    @NSManaged public var id: UUID?
+    @NSManaged public var name: String?
+    @NSManaged public var organization: String?
+    @NSManaged public var price: Double
+    @NSManaged public var quantity: Int64
+    @NSManaged public var category: String?
+    @NSManaged public var target: String?
+    @NSManaged public var barcode: String?
+    @NSManaged public var photo: Data?
+    @NSManaged public var customFields: NSObject?
+    @NSManaged public var ownerId: String?  // Для идентификации владельца (uid)
+    @NSManaged public var container: WarehouseContainer?
+}
+
+@objc(InventoryTransaction)
+public class InventoryTransaction: NSManagedObject { }
+
+extension InventoryTransaction {
+    @nonobjc public class func fetchRequest() -> NSFetchRequest<InventoryTransaction> {
+        NSFetchRequest<InventoryTransaction>(entityName: "InventoryTransaction")
+    }
+    
+    @NSManaged public var id: UUID?
+    @NSManaged public var date: Date?
+    @NSManaged public var type: String?
+    @NSManaged public var expenseQuantity: Int64
+    @NSManaged public var expensePurpose: String?
+    @NSManaged public var product: ProductItem?
+    // Новое поле для идентификации владельца транзакции
+    @NSManaged public var ownerId: String?
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/History/ExportHistoryView.swift ---
+// файл ExportHistoryView
+import SwiftUI
+import CoreData
+import UniformTypeIdentifiers
+
+struct ExportHistoryView: View {
+    @State private var selectedType: String = "Все" // варианты: "Все", "Приход", "Расход"
+    @State private var startDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var endDate: Date = Date()
+    @State private var categoryFilter: String = ""
+    @State private var fileURL: URL? = nil
+    @State private var showShareSheet: Bool = false
+    @State private var showAlert: Bool = false
+    @State private var alertMessage: String = ""
+    
+    let operationTypes = ["Все", "Приход", "Расход"]
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Фильтры экспорта")) {
+                Picker("Тип операции", selection: $selectedType) {
+                    ForEach(operationTypes, id: \.self) { type in
+                        Text(type)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                
+                DatePicker("Начало периода", selection: $startDate, displayedComponents: .date)
+                DatePicker("Конец периода", selection: $endDate, displayedComponents: .date)
+                
+                TextField("Категория (если нужно)", text: $categoryFilter)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            
+            Section {
+                Button("Экспортировать историю") {
+                    exportHistory()
+                }
+            }
+        }
+        .navigationTitle("Экспорт истории")
+        .sheet(isPresented: $showShareSheet, onDismiss: {
+            if let url = fileURL {
+                try? FileManager.default.removeItem(at: url)
+                fileURL = nil
+            }
+        }) {
+            if let url = fileURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .alert(isPresented: $showAlert) {
+            Alert(title: Text("Ошибка экспорта"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+        }
+    }
+    
+    private func exportHistory() {
+        let transactions = fetchFilteredTransactions()
+        
+        // Собираем объединённый набор ключей для дополнительных полей
+        var additionalKeys = Set<String>()
+        for t in transactions {
+            if let custom = t.product?.customFields as? [String: String] {
+                additionalKeys.formUnion(custom.keys)
+            }
+        }
+        let sortedAdditionalKeys = additionalKeys.sorted()
+        
+        // Формируем заголовок CSV: удаляем столбцы ID и Штрихкод, добавляем "Количество"
+        var csvHeader = "Дата,Тип,Название,Организация,Цена,Количество,Категория,Для кого"
+        for key in sortedAdditionalKeys {
+            csvHeader += ",\"\(key)\""
+        }
+        csvHeader += "\n"
+        
+        // Формируем строки для каждой транзакции
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy HH:mm"
+        
+        var csvBody = ""
+        for t in transactions {
+            let date = t.date != nil ? formatter.string(from: t.date!) : ""
+            let type = t.type ?? ""
+            let product = t.product
+            let name = product?.name ?? ""
+            let org = product?.organization ?? ""
+            let price = "\(product?.price ?? 0)"
+            let quantity = "\(product?.quantity ?? 0)"
+            let category = product?.category ?? ""
+            let target = product?.target ?? ""
+            
+            var row = "\"\(date)\",\"\(type)\",\"\(name)\",\"\(org)\",\"\(price)\",\"\(quantity)\",\"\(category)\",\"\(target)\""
+            
+            // Для каждого дополнительного поля
+            let customDict = product?.customFields as? [String: String] ?? [:]
+            for key in sortedAdditionalKeys {
+                let value = customDict[key] ?? ""
+                row += ",\"\(value)\""
+            }
+            row += "\n"
+            csvBody += row
+        }
+        
+        let csv = csvHeader + csvBody
+        
+        // Сохраняем CSV во временный файл
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "ExportedHistory_\(Date().timeIntervalSince1970).csv"
+        let url = tempDir.appendingPathComponent(fileName)
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            fileURL = url
+            showShareSheet = true
+        } catch {
+            alertMessage = "Не удалось сохранить файл: \(error.localizedDescription)"
+            showAlert = true
+        }
+    }
+    
+    private func fetchFilteredTransactions() -> [InventoryTransaction] {
+        let context = PersistenceController.shared.container.viewContext
+        let request: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+        
+        var predicates: [NSPredicate] = []
+        
+        // Фильтр по дате
+        let datePredicate = NSPredicate(format: "date >= %@ AND date <= %@", startDate as NSDate, endDate as NSDate)
+        predicates.append(datePredicate)
+        
+        // Фильтр по типу операции (если выбран не "Все")
+        if selectedType != "Все" {
+            let typePredicate = NSPredicate(format: "type == %@", selectedType)
+            predicates.append(typePredicate)
+        }
+        
+        // Фильтр по категории (если указано)
+        if !categoryFilter.trimmingCharacters(in: .whitespaces).isEmpty {
+            let categoryPredicate = NSPredicate(format: "product.category CONTAINS[cd] %@", categoryFilter)
+            predicates.append(categoryPredicate)
+        }
+        
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        
+        do {
+            return try context.fetch(request)
+        } catch {
+            print("Ошибка выборки транзакций: \(error)")
+            return []
+        }
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+         UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
+}
+
+struct ExportHistoryView_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            ExportHistoryView()
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/History/DataBackupManager.swift ---
+// databackupmanager
+import Foundation
+import CoreData
+import UIKit
+
+// MARK: - Структуры для кодируемого представления данных
+
+struct ProductBackup: Codable {
+    let id: UUID
+    let name: String?
+    let organization: String?
+    let price: Double
+    let quantity: Int64
+    let category: String?
+    let target: String?
+    let barcode: String?
+    let photo: String?         // Фото товара в виде Base64 строки
+    let customFields: [String: String]?
+    let ownerId: String?
+    // Если требуется сохранять связь с контейнером, можно добавить containerId (опционально)
+    // let containerId: UUID?
+}
+
+struct TransactionBackup: Codable {
+    let id: UUID
+    let date: Date
+    let type: String?
+    let expenseQuantity: Int64
+    let expensePurpose: String?
+    let productId: UUID?       // Идентификатор товара, с которым связана транзакция
+}
+
+struct ContainerBackup: Codable {
+    let id: UUID
+    let name: String?
+}
+
+struct BackupData: Codable {
+    let products: [ProductBackup]
+    let transactions: [TransactionBackup]
+    let containers: [ContainerBackup]
+}
+
+// MARK: - Менеджер экспорта/импорта данных
+
+class DataBackupManager {
+    
+    /// Экспортирует все данные (товары, транзакции, контейнеры) в JSON-файл и возвращает URL на него.
+    static func exportData() -> URL? {
+        let context = PersistenceController.shared.container.viewContext
+        do {
+            let products = try context.fetch(ProductItem.fetchRequest() as NSFetchRequest<ProductItem>)
+            let transactions = try context.fetch(InventoryTransaction.fetchRequest() as NSFetchRequest<InventoryTransaction>)
+            let containers = try context.fetch(WarehouseContainer.fetchRequest() as NSFetchRequest<WarehouseContainer>)
+            
+            // Преобразуем товары в кодируемую структуру
+            let productBackups: [ProductBackup] = products.map { product in
+                let photoString: String?
+                if let photoData = product.photo {
+                    photoString = photoData.base64EncodedString()
+                } else {
+                    photoString = nil
+                }
+                var custom: [String: String]? = nil
+                if let dict = product.customFields as? [String: String] {
+                    custom = dict
+                }
+                return ProductBackup(
+                    id: product.id ?? UUID(),
+                    name: product.name,
+                    organization: product.organization,
+                    price: product.price,
+                    quantity: product.quantity,
+                    category: product.category,
+                    target: product.target,
+                    barcode: product.barcode,
+                    photo: photoString,
+                    customFields: custom,
+                    ownerId: product.ownerId
+                    // Если используется связь с контейнером, можно добавить: containerId: product.container?.id
+                )
+            }
+            
+            // Преобразуем транзакции (историю операций)
+            let transactionBackups: [TransactionBackup] = transactions.map { transaction in
+                return TransactionBackup(
+                    id: transaction.id ?? UUID(),
+                    date: transaction.date ?? Date(),
+                    type: transaction.type,
+                    expenseQuantity: transaction.expenseQuantity,
+                    expensePurpose: transaction.expensePurpose,
+                    productId: transaction.product?.id
+                )
+            }
+            
+            // Преобразуем контейнеры
+            let containerBackups: [ContainerBackup] = containers.map { container in
+                return ContainerBackup(
+                    id: container.id ?? UUID(),
+                    name: container.name
+                )
+            }
+            
+            let backupData = BackupData(products: productBackups,
+                                        transactions: transactionBackups,
+                                        containers: containerBackups)
+            
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(backupData)
+            
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "Backup_\(Date().timeIntervalSince1970).json"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            try data.write(to: fileURL)
+            return fileURL
+        } catch {
+            print("Ошибка экспорта данных: \(error)")
+            return nil
+        }
+    }
+    
+    /// Импортирует данные из указанного JSON-файла. Новые записи добавляются, существующие (с одинаковым id) обновляются.
+    static func importData(from url: URL) {
+        let context = PersistenceController.shared.container.viewContext
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let backupData = try decoder.decode(BackupData.self, from: data)
+            
+            // 1. Импортируем контейнеры – они могут понадобиться для связи с товарами
+            for containerBackup in backupData.containers {
+                let fetchRequest: NSFetchRequest<WarehouseContainer> = WarehouseContainer.fetchRequest()
+                fetchRequest.predicate = NSPredicate(format: "id == %@", containerBackup.id as CVarArg)
+                if let existing = try context.fetch(fetchRequest).first {
+                    existing.name = containerBackup.name
+                } else {
+                    let newContainer = WarehouseContainer(context: context)
+                    newContainer.id = containerBackup.id
+                    newContainer.name = containerBackup.name
+                }
+            }
+            
+            // 2. Импортируем товары
+            for productBackup in backupData.products {
+                let fetchRequest: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+                fetchRequest.predicate = NSPredicate(format: "id == %@", productBackup.id as CVarArg)
+                let product: ProductItem
+                if let existing = try context.fetch(fetchRequest).first {
+                    product = existing
+                } else {
+                    product = ProductItem(context: context)
+                    product.id = productBackup.id
+                }
+                product.name = productBackup.name
+                product.organization = productBackup.organization
+                product.price = productBackup.price
+                product.quantity = productBackup.quantity
+                product.category = productBackup.category
+                product.target = productBackup.target
+                product.barcode = productBackup.barcode
+                if let photoString = productBackup.photo,
+                   let photoData = Data(base64Encoded: photoString) {
+                    product.photo = photoData
+                }
+                if let custom = productBackup.customFields {
+                    product.customFields = custom as NSDictionary
+                }
+                product.ownerId = productBackup.ownerId
+                
+                // Если используется связь с контейнером и в backup добавили containerId,
+                // можно попытаться найти соответствующий WarehouseContainer и установить его.
+                /*
+                if let containerId = productBackup.containerId {
+                    let containerRequest: NSFetchRequest<WarehouseContainer> = WarehouseContainer.fetchRequest()
+                    containerRequest.predicate = NSPredicate(format: "id == %@", containerId as CVarArg)
+                    if let container = try context.fetch(containerRequest).first {
+                        product.container = container
+                    }
+                }
+                */
+            }
+            
+            // 3. Импортируем транзакции (историю)
+            for transactionBackup in backupData.transactions {
+                let fetchRequest: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+                fetchRequest.predicate = NSPredicate(format: "id == %@", transactionBackup.id as CVarArg)
+                let transaction: InventoryTransaction
+                if let existing = try context.fetch(fetchRequest).first {
+                    transaction = existing
+                } else {
+                    transaction = InventoryTransaction(context: context)
+                    transaction.id = transactionBackup.id
+                }
+                transaction.date = transactionBackup.date
+                transaction.type = transactionBackup.type
+                transaction.expenseQuantity = transactionBackup.expenseQuantity
+                transaction.expensePurpose = transactionBackup.expensePurpose
+                
+                // Устанавливаем связь с товаром по productId
+                if let productId = transactionBackup.productId {
+                    let productFetch: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+                    productFetch.predicate = NSPredicate(format: "id == %@", productId as CVarArg)
+                    if let relatedProduct = try context.fetch(productFetch).first {
+                        transaction.product = relatedProduct
+                    }
+                }
+            }
+            
+            try context.save()
+            print("Импорт данных выполнен успешно.")
+        } catch {
+            print("Ошибка импорта данных: \(error)")
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/History/HistoryView.swift ---
+import SwiftUI
+import CoreData
+import FirebaseAuth
+
+struct HistoryView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject var sessionManager: SessionManager
+
+    var body: some View {
+        // Формируем predicate на основе ownerId:
+        // Если пользователь авторизован – отображаем транзакции с ownerId равным uid,
+        // иначе – транзакции без привязки (ownerId == nil)
+        let predicate: NSPredicate = {
+            if let user = sessionManager.currentUser {
+                print("HistoryView: predicate = ownerId == \(user.uid)")
+                return NSPredicate(format: "ownerId == %@", user.uid)
+            } else {
+                print("HistoryView: predicate = ownerId == nil")
+                return NSPredicate(format: "ownerId == nil")
+            }
+        }()
+        
+        return HistoryContentView(predicate: predicate)
+            .id(sessionManager.currentUser?.uid ?? "guest")
+            .onAppear {
+                guard let user = sessionManager.currentUser else {
+                    // Гость: просто обновим контекст и выведем локальные guest-данные
+                    viewContext.refreshAllObjects()
+                    let count = fetchTransactionCount(predicate: predicate)
+                    print("HistoryView appeared (guest). Transactions count: \(count)")
+                    return
+                }
+                
+                // Если пользователь авторизован – загружаем последние 25 транзакций из Firestore
+                FirestoreService.shared.fetchLast25Transactions(for: user) { items, error in
+                    if let error = error {
+                        print("Ошибка при загрузке последних 25 транзакций: \(error)")
+                        // Тем не менее, обновим контекст, чтобы показать локальные
+                        DispatchQueue.main.async {
+                            viewContext.refreshAllObjects()
+                            let count = fetchTransactionCount(predicate: predicate)
+                            print("HistoryView appeared. Transactions count (local only): \(count)")
+                        }
+                        return
+                    }
+                    // items – это [[String: Any]] с полями транзакций
+                    SessionManager.shared.saveTransactionsDataToMainStore(items, ownerId: user.uid)
+                    
+                    // Обновляем контекст, чтобы список отобразил новые данные
+                    DispatchQueue.main.async {
+                        viewContext.refreshAllObjects()
+                        let count = fetchTransactionCount(predicate: predicate)
+                        print("HistoryView appeared. Transactions count (after fetchLast25): \(count)")
+                    }
+                }
+            }
+    }
+    
+    private func fetchTransactionCount(predicate: NSPredicate) -> Int {
+        let request: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+        request.predicate = predicate
+        do {
+            return try viewContext.count(for: request)
+        } catch {
+            print("Ошибка подсчёта транзакций: \(error)")
+            return 0
+        }
+    }
+}
+
+struct HistoryContentView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    var predicate: NSPredicate
+
+    @FetchRequest var transactions: FetchedResults<InventoryTransaction>
+    
+    init(predicate: NSPredicate) {
+        self.predicate = predicate
+        _transactions = FetchRequest<InventoryTransaction>(
+            entity: InventoryTransaction.entity(),
+            sortDescriptors: [NSSortDescriptor(keyPath: \InventoryTransaction.date, ascending: false)],
+            predicate: predicate
+        )
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                if transactions.isEmpty {
+                    Text("Нет транзакций")
+                        .foregroundColor(.gray)
+                }
+                ForEach(transactions, id: \.id) { transaction in
+                    NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                        TransactionCardView(transaction: transaction)
+                    }
+                }
+                .onDelete(perform: deleteTransactions)
+            }
+            .listStyle(PlainListStyle())
+            .navigationTitle("История (\(transactions.count))")
+        }
+    }
+    
+    private func deleteTransactions(at offsets: IndexSet) {
+        for index in offsets {
+            let transaction = transactions[index]
+            viewContext.delete(transaction)
+        }
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка удаления транзакции: \(error)")
+        }
+    }
+}
+
+struct TransactionCardView: View {
+    var transaction: InventoryTransaction
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if let product = transaction.product,
+               let photoData = product.photo,
+               let image = UIImage(data: photoData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(.gray)
+                    )
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(transaction.product?.name ?? "Неизвестный товар")
+                    .font(.headline)
+                Text(transaction.type ?? "")
+                    .font(.subheadline)
+                    .foregroundColor(transaction.type == "Приход" ? .green : .red)
+                
+                if transaction.type == "Приход" {
+                    if let product = transaction.product {
+                        Text("Количество: \(product.quantity)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else if transaction.type == "Расход" {
+                    Text("Списано: \(transaction.expenseQuantity)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let purpose = transaction.expensePurpose, !purpose.isEmpty {
+                        Text("Причина: \(purpose)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                if let date = transaction.date {
+                    Text(date, formatter: itemFormatter)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+            }
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+private let itemFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter
+}()
+--- /Users/halil/Desktop/Sklswift/Sklswift/Warehouse/NoContainerDetailView.swift ---
+//файл NoContainerDetailView
+import SwiftUI
+import CoreData
+
+struct NoContainerDetailView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    // Выбираем только товары без контейнера, у которых quantity > 0
+    @FetchRequest(
+        entity: ProductItem.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \ProductItem.name, ascending: true)],
+        predicate: NSPredicate(format: "container == nil AND quantity > 0")
+    ) var products: FetchedResults<ProductItem>
+
+    var body: some View {
+        List {
+            ForEach(products, id: \.id) { product in
+                NavigationLink(destination: ProductDetailView(product: product)) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(product.name ?? "Нет названия")
+                                .font(.headline)
+                            Text("Категория: \(product.category ?? "")")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Text("Кол-во: \(product.quantity)")
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .onDelete(perform: deleteProducts)
+        }
+        .navigationTitle("Без контейнера")
+    }
+    
+    private func deleteProducts(at offsets: IndexSet) {
+        for index in offsets {
+            let product = products[index]
+            viewContext.delete(product)
+        }
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка удаления товара: \(error)")
+        }
+    }
+}
+
+struct NoContainerDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        NoContainerDetailView()
+            .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Warehouse/ContainerDetailView.swift ---
+// файл ContainerDetailView
+import SwiftUI
+import CoreData
+
+struct ContainerDetailView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    var container: WarehouseContainer
+
+    @FetchRequest var products: FetchedResults<ProductItem>
+    @State private var searchText: String = ""
+    
+    init(container: WarehouseContainer) {
+        self.container = container
+        // Отображаем только товары с quantity > 0
+        _products = FetchRequest(
+            entity: ProductItem.entity(),
+            sortDescriptors: [NSSortDescriptor(keyPath: \ProductItem.name, ascending: true)],
+            predicate: NSPredicate(format: "container == %@ AND quantity > 0", container)
+        )
+    }
+    
+    // Фильтрация товаров по введённому тексту
+    var filteredProducts: [ProductItem] {
+        if searchText.isEmpty {
+            return Array(products)
+        } else {
+            return products.filter { product in
+                if let name = product.name {
+                    return name.lowercased().contains(searchText.lowercased())
+                }
+                return false
+            }
+        }
+    }
+    
+    var body: some View {
+        VStack {
+            // Поле поиска для товаров внутри контейнера
+            SearchBar(text: $searchText, placeholder: "Поиск товара")
+                .padding(.horizontal)
+                .padding(.top, 8)
+            
+            List {
+                ForEach(filteredProducts, id: \.id) { product in
+                    NavigationLink(destination: ProductDetailView(product: product)) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(product.name ?? "Нет названия")
+                                    .font(.headline)
+                                Text("Категория: \(product.category ?? "")")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            Spacer()
+                            Text("Кол-во: \(product.quantity)")
+                                .font(.subheadline)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .onDelete(perform: deleteProducts)
+            }
+            .listStyle(PlainListStyle())
+        }
+        .navigationTitle(container.name ?? "Контейнер")
+    }
+    
+    private func deleteProducts(at offsets: IndexSet) {
+        for index in offsets {
+            let product = filteredProducts[index]
+            viewContext.delete(product)
+        }
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка удаления товара: \(error)")
+        }
+    }
+}
+
+struct ContainerDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        let container = WarehouseContainer(context: context)
+        container.id = UUID()
+        container.name = "Тестовый контейнер"
+        return NavigationView {
+            ContainerDetailView(container: container)
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Warehouse/WarehouseView.swift ---
+// файл WarehouseView
+import SwiftUI
+import CoreData
+
+struct WarehouseView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @State private var searchText: String = ""
+    
+    // Переменные для редактирования названия контейнера
+    @State private var editingContainer: WarehouseContainer? = nil
+    @State private var newContainerName: String = ""
+    @State private var showEditContainerSheet: Bool = false
+
+    @FetchRequest(
+        entity: WarehouseContainer.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \WarehouseContainer.name, ascending: true)]
+    ) var containers: FetchedResults<WarehouseContainer>
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                // Универсальный поиск: по названию контейнера или по товарам внутри
+                SearchBar(text: $searchText, placeholder: "Поиск контейнера или товара")
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                
+                List {
+                    // Фильтруем контейнеры: показываем те, у которых имя или хотя бы один товар соответствует запросу
+                    ForEach(containers.filter { container in
+                        if searchText.isEmpty { return true }
+                        let lowerQuery = searchText.lowercased()
+                        let containerNameMatches = container.name?.lowercased().contains(lowerQuery) ?? false
+                        let productMatches = (container.products as? Set<ProductItem>)?.filter {
+                            ($0.name?.lowercased().contains(lowerQuery)) ?? false
+                        } ?? []
+                        return containerNameMatches || !productMatches.isEmpty
+                    }, id: \.id) { container in
+                        NavigationLink(destination: ContainerDetailView(container: container)) {
+                            HStack {
+                                Text(container.name ?? "Без названия")
+                                    .font(.headline)
+                                Spacer()
+                                Text("Всего: \(totalQuantity(for: container))")
+                                    .foregroundColor(.gray)
+                                    .font(.subheadline)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .contextMenu {
+                            Button("Редактировать") {
+                                editingContainer = container
+                                newContainerName = container.name ?? ""
+                                showEditContainerSheet = true
+                            }
+                            Button(role: .destructive) {
+                                deleteContainer(container)
+                            } label: {
+                                Text("Удалить")
+                            }
+                        }
+                    }
+                    
+                    // Если поиск пустой – показываем контейнер "Без контейнера"
+                    if searchText.isEmpty {
+                        NavigationLink(destination: NoContainerDetailView()) {
+                            HStack {
+                                Text("Без контейнера")
+                                    .font(.headline)
+                                Spacer()
+                                Text("Всего: \(totalQuantityForNoContainer())")
+                                    .foregroundColor(.gray)
+                                    .font(.subheadline)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } else {
+                        // При поиске проверяем, есть ли товары без контейнера, удовлетворяющие запросу
+                        let noContainerMatches = noContainerProducts().filter {
+                            ($0.name?.lowercased().contains(searchText.lowercased())) ?? false
+                        }
+                        if !noContainerMatches.isEmpty {
+                            NavigationLink(destination: NoContainerDetailView()) {
+                                HStack {
+                                    Text("Без контейнера")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("Найдено: \(noContainerMatches.count) товар(ов)")
+                                        .foregroundColor(.gray)
+                                        .font(.subheadline)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }
+                .listStyle(PlainListStyle())
+            }
+            .navigationTitle("Склад")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: addDummyContainer) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            // Sheet для редактирования названия контейнера
+            .sheet(isPresented: $showEditContainerSheet) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("Новое название контейнера")) {
+                            TextField("Название", text: $newContainerName)
+                        }
+                    }
+                    .navigationTitle("Редактирование")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Сохранить") {
+                                if let container = editingContainer {
+                                    container.name = newContainerName
+                                    do {
+                                        try viewContext.save()
+                                    } catch {
+                                        print("Ошибка сохранения: \(error)")
+                                    }
+                                }
+                                showEditContainerSheet = false
+                                editingContainer = nil
+                            }
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Отмена") {
+                                showEditContainerSheet = false
+                                editingContainer = nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Подсчитываем общий остаток товаров в контейнере (только товары с quantity > 0)
+    private func totalQuantity(for container: WarehouseContainer) -> Int64 {
+        let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+        request.predicate = NSPredicate(format: "container == %@ AND quantity > 0", container)
+        do {
+            let products = try viewContext.fetch(request)
+            return products.reduce(0) { $0 + $1.quantity }
+        } catch {
+            print("Ошибка подсчёта: \(error)")
+            return 0
+        }
+    }
+    
+    private func totalQuantityForNoContainer() -> Int64 {
+        let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+        request.predicate = NSPredicate(format: "container == nil AND quantity > 0")
+        do {
+            let products = try viewContext.fetch(request)
+            return products.reduce(0) { $0 + $1.quantity }
+        } catch {
+            print("Ошибка подсчёта: \(error)")
+            return 0
+        }
+    }
+    
+    // Товары без контейнера (запрос без ограничения по количеству – для поиска)
+    private func noContainerProducts() -> [ProductItem] {
+        let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+        request.predicate = NSPredicate(format: "container == nil")
+        do {
+            return try viewContext.fetch(request)
+        } catch {
+            print("Ошибка выборки: \(error)")
+            return []
+        }
+    }
+    
+    // Функция добавления тестового контейнера с тестовым товаром
+    private func addDummyContainer() {
+        let newContainer = WarehouseContainer(context: viewContext)
+        newContainer.id = UUID()
+        newContainer.name = "Контейнер \(containers.count + 1)"
+        
+        // Создаём тестовый товар с количеством > 0
+        let newProduct = ProductItem(context: viewContext)
+        newProduct.id = UUID()
+        newProduct.name = "Товар \(Int.random(in: 1...100))"
+        newProduct.category = "Категория \(Int.random(in: 1...5))"
+        newProduct.price = Double.random(in: 10...100)
+        newProduct.organization = "Организация"
+        newProduct.target = "Клиент"
+        newProduct.barcode = "1234567890"
+        newProduct.quantity = Int64.random(in: 1...10)
+        newProduct.container = newContainer
+        
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка сохранения: \(error)")
+        }
+    }
+    
+    // Функция удаления контейнера
+    private func deleteContainer(_ container: WarehouseContainer) {
+        viewContext.delete(container)
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка удаления контейнера: \(error)")
+        }
+    }
+}
+
+struct WarehouseView_Previews: PreviewProvider {
+    static var previews: some View {
+        WarehouseView()
+            .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Warehouse/ProductDetailView.swift ---
+//файл ProductDetailView
+import SwiftUI
+import CoreData
+
+struct ProductDetailView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @State var product: ProductItem
+
+    // Редактируемые поля
+    @State private var productName: String
+    @State private var price: String
+    @State private var quantity: String
+    @State private var category: String
+    @State private var target: String
+    @State private var organization: String
+    @State private var barcode: String
+    
+    // Режим редактирования
+    @State private var isEditing: Bool = false
+    
+    // Форматтер для даты в формате ДД.ММ.ГГГГ
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy"
+        return formatter
+    }
+    
+    // Вычисляемая свойство: определяем дату создания товара через самую раннюю транзакцию
+    var creationDate: Date? {
+        let context = PersistenceController.shared.container.viewContext
+        let request: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+        request.predicate = NSPredicate(format: "product == %@", product)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \InventoryTransaction.date, ascending: true)]
+        request.fetchLimit = 1
+        do {
+            let transactions = try context.fetch(request)
+            return transactions.first?.date
+        } catch {
+            print("Ошибка выборки транзакций: \(error)")
+            return nil
+        }
+    }
+    
+    init(product: ProductItem) {
+        _product = State(initialValue: product)
+        _productName = State(initialValue: product.name ?? "")
+        _price = State(initialValue: String(format: "%.2f", product.price))
+        _quantity = State(initialValue: String(product.quantity))
+        _category = State(initialValue: product.category ?? "")
+        _target = State(initialValue: product.target ?? "")
+        _organization = State(initialValue: product.organization ?? "")
+        _barcode = State(initialValue: product.barcode ?? "")
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Изображение товара (если имеется)
+                if let photoData = product.photo, let image = UIImage(data: photoData) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 250)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+                }
+                
+                // Карточка с информацией о товаре
+                VStack(alignment: .leading, spacing: 12) {
+                    if isEditing {
+                        TextField("Название товара", text: $productName)
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(8)
+                            .padding([.top, .horizontal])
+                    } else {
+                        Text(productName)
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .padding([.top, .horizontal])
+                    }
+                    
+                    Divider()
+                    
+                    // Новая секция с датой добавления
+                    if let date = creationDate {
+                        HStack {
+                            Text("Дата добавления:")
+                                .bold()
+                            Spacer()
+                            Text(dateFormatter.string(from: date))
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    infoRow(title: "Организация", value: isEditing ? $organization : .constant(organization))
+                    infoRow(title: "Цена", value: isEditing ? $price : .constant(price))
+                    infoRow(title: "Количество", value: isEditing ? $quantity : .constant(quantity))
+                    infoRow(title: "Категория", value: isEditing ? $category : .constant(category))
+                    infoRow(title: "Для кого", value: isEditing ? $target : .constant(target))
+                    infoRow(title: "Штрих-код", value: isEditing ? $barcode : .constant(barcode))
+                    
+                    // Дополнительные поля (только для чтения)
+                    if let custom = product.customFields as? [String: String], !custom.isEmpty {
+                        ForEach(custom.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                            HStack {
+                                Text("\(key):")
+                                    .bold()
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(value)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 5)
+                .padding(.horizontal)
+                
+                // Кнопка сохранения в режиме редактирования
+                if isEditing {
+                    Button("Сохранить изменения") {
+                        saveChanges()
+                        isEditing = false
+                    }
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(8)
+                    .padding([.top, .horizontal])
+                }
+                
+                // Кнопка переключения режима редактирования
+                Button(isEditing ? "Отмена" : "Редактировать") {
+                    isEditing.toggle()
+                    if !isEditing {
+                        // Отмена редактирования – восстановление исходных данных
+                        productName = product.name ?? ""
+                        price = String(format: "%.2f", product.price)
+                        quantity = String(product.quantity)
+                        category = product.category ?? ""
+                        target = product.target ?? ""
+                        organization = product.organization ?? ""
+                        barcode = product.barcode ?? ""
+                    }
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle("Детали товара")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func infoRow(title: String, value: Binding<String>) -> some View {
+        HStack {
+            Text("\(title):")
+                .bold()
+                .foregroundColor(.secondary)
+            Spacer()
+            if isEditing {
+                TextField(title, text: value)
+                    .padding(5)
+                    .background(Color.white)
+                    .cornerRadius(8)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            } else {
+                Text(value.wrappedValue)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    private func saveChanges() {
+        product.name = productName
+        product.price = Double(price) ?? 0.0
+        product.quantity = Int64(quantity) ?? 0
+        product.category = category
+        product.target = target
+        product.organization = organization
+        product.barcode = barcode
+
+        do {
+            try viewContext.save()
+        } catch {
+            print("Ошибка при сохранении изменений: \(error)")
+        }
+    }
+}
+
+struct ProductDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let context = PersistenceController.shared.container.viewContext
+        let product = ProductItem(context: context)
+        product.id = UUID()
+        product.name = "Пример товара"
+        product.organization = "Пример организации"
+        product.price = 99.99
+        product.quantity = 5
+        product.category = "Пример категории"
+        product.target = "Пример для кого"
+        product.barcode = "1234567890"
+        product.customFields = ["Цвет": "Красный", "Размер": "M"] as NSDictionary
+        
+        return NavigationView {
+            ProductDetailView(product: product)
+        }
+        .environment(\.managedObjectContext, context)
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Barcode/BarcodeScannerView.swift ---
+//
+//  файл BarcodeScannerView.swift
+//  SklSwift
+//
+import SwiftUI
+import AVFoundation
+
+struct BarcodeScannerView: UIViewControllerRepresentable {
+    var completion: (String) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIViewController(context: Context) -> ScannerViewController {
+        let vc = ScannerViewController()
+        vc.delegate = context.coordinator
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) { }
+
+    class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+        var parent: BarcodeScannerView
+
+        init(parent: BarcodeScannerView) {
+            self.parent = parent
+        }
+
+        func metadataOutput(_ output: AVCaptureMetadataOutput,
+                            didOutput metadataObjects: [AVMetadataObject],
+                            from connection: AVCaptureConnection) {
+            if let metadataObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+               let code = metadataObject.stringValue {
+                parent.completion(code)
+            }
+        }
+    }
+}
+
+class ScannerViewController: UIViewController {
+    var delegate: BarcodeScannerView.Coordinator?
+    var captureSession: AVCaptureSession!
+    var previewLayer: AVCaptureVideoPreviewLayer!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor.black
+        captureSession = AVCaptureSession()
+
+        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
+        guard let videoInput = try? AVCaptureDeviceInput(device: videoCaptureDevice) else { return }
+
+        if captureSession.canAddInput(videoInput) {
+            captureSession.addInput(videoInput)
+        } else {
+            failed()
+            return
+        }
+
+        let metadataOutput = AVCaptureMetadataOutput()
+        if captureSession.canAddOutput(metadataOutput) {
+            captureSession.addOutput(metadataOutput)
+            metadataOutput.setMetadataObjectsDelegate(delegate, queue: DispatchQueue.main)
+            metadataOutput.metadataObjectTypes = [.ean8, .ean13, .pdf417, .qr]
+        } else {
+            failed()
+            return
+        }
+
+        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
+        previewLayer.frame = view.layer.bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+
+        captureSession.startRunning()
+    }
+
+    func failed() {
+        let alert = UIAlertController(title: "Scanning not supported",
+                                      message: "Your device does not support scanning.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+        captureSession = nil
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if captureSession?.isRunning == true {
+            captureSession.stopRunning()
+        }
+    }
+
+    override var prefersStatusBarHidden: Bool {
+        true
+    }
+}
+
+--- /Users/halil/Desktop/Sklswift/Sklswift/Services/AuthService.swift ---
+//файл AuthService
+import FirebaseAuth
+
+class AuthService {
+    static let shared = AuthService()
+    
+    func signUp(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            if let user = authResult?.user {
+                completion(.success(user))
+            }
+        }
+    }
+    
+    func signIn(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        Auth.auth().signIn(withEmail: email, password: password) { authResult, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            if let user = authResult?.user {
+                completion(.success(user))
+            }
+        }
+    }
+    
+    func signOut(completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try Auth.auth().signOut()
+            completion(.success(()))
+        } catch {
+            completion(.failure(error))
+        }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Services/SessionManager.swift ---
+//SessionManager
+import SwiftUI
+import FirebaseAuth
+import CoreData
+
+class SessionManager: ObservableObject {
+    @Published var currentUser: User? = nil
+
+    var isGuest: Bool {
+        return currentUser == nil
+    }
+    
+    static let shared = SessionManager()
+    
+    private init() {
+        self.currentUser = Auth.auth().currentUser
+    }
+    
+    // MARK: - Вход
+    func signIn(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        Auth.auth().signIn(withEmail: email, password: password) { [weak self] result, error in
+            guard let self = self else { return }
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            if let user = result?.user {
+                self.currentUser = user
+                
+                let mainContext = PersistenceController.shared.container.viewContext
+                
+                // Удаляем гостевые
+                let guestRequest: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+                guestRequest.predicate = NSPredicate(format: "ownerId == nil")
+                if let guestProducts = try? mainContext.fetch(guestRequest) {
+                    for product in guestProducts {
+                        mainContext.delete(product)
+                    }
+                    do {
+                        try mainContext.save()
+                    } catch {
+                        print("Ошибка удаления гостевых данных: \(error)")
+                    }
+                }
+                
+                // Загрузка товаров из Firestore
+                FirestoreService.shared.fetchAllProducts(for: user) { productsData, fetchError in
+                    if let fetchError = fetchError {
+                        completion(.failure(fetchError))
+                    } else {
+                        self.saveProductsDataToMainStore(productsData, ownerId: user.uid)
+                        // Загрузка транзакций
+                        FirestoreService.shared.fetchAllTransactions(for: user) { transactionsData, transError in
+                            if let transError = transError {
+                                completion(.failure(transError))
+                            } else {
+                                self.saveTransactionsDataToMainStore(transactionsData, ownerId: user.uid)
+                                DispatchQueue.main.async {
+                                    mainContext.refreshAllObjects()
+                                    completion(.success(user))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Выход
+    func signOut(completion: @escaping (Result<Void, Error>) -> Void) {
+        if let user = self.currentUser {
+            do {
+                try removeUserDataFromMainStore(ownerId: user.uid)
+            } catch {
+                completion(.failure(error))
+                return
+            }
+        }
+        do {
+            try Auth.auth().signOut()
+            self.currentUser = nil
+            completion(.success(()))
+        } catch {
+            completion(.failure(error))
+        }
+    }
+    
+    // MARK: - Сохранение (теперь internal, не private)
+    
+    func saveProductsDataToMainStore(_ productsData: [[String: Any]], ownerId: String) {
+        let mainContext = PersistenceController.shared.container.viewContext
+        for dict in productsData {
+            guard let idString = dict["id"] as? String,
+                  let uuid = UUID(uuidString: idString) else { continue }
+            let request: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
+            let product = (try? mainContext.fetch(request).first) ?? ProductItem(context: mainContext)
+            product.id = uuid
+            product.name = dict["name"] as? String
+            product.organization = dict["organization"] as? String
+            product.price = dict["price"] as? Double ?? 0
+            product.quantity = dict["quantity"] as? Int64 ?? 0
+            product.category = dict["category"] as? String
+            product.target = dict["target"] as? String
+            product.barcode = dict["barcode"] as? String
+            product.ownerId = ownerId
+            if let custom = dict["customFields"] as? [String: String] {
+                product.customFields = custom as NSDictionary
+            }
+        }
+        do {
+            try mainContext.save()
+        } catch {
+            print("Ошибка сохранения товаров из Firebase: \(error)")
+        }
+    }
+    
+    func saveTransactionsDataToMainStore(_ transactionsData: [[String: Any]], ownerId: String) {
+        let mainContext = PersistenceController.shared.container.viewContext
+        for dict in transactionsData {
+            guard let idString = dict["id"] as? String,
+                  let uuid = UUID(uuidString: idString) else { continue }
+            let request: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
+            let transaction = (try? mainContext.fetch(request).first) ?? InventoryTransaction(context: mainContext)
+            transaction.id = uuid
+            transaction.date = dict["date"] as? Date ?? Date()
+            transaction.type = dict["type"] as? String
+            transaction.expenseQuantity = dict["expenseQuantity"] as? Int64 ?? 0
+            transaction.expensePurpose = dict["expensePurpose"] as? String
+            transaction.ownerId = ownerId
+            if let productIdString = dict["productId"] as? String,
+               let productId = UUID(uuidString: productIdString) {
+                let productRequest: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+                productRequest.predicate = NSPredicate(format: "id == %@", productId as CVarArg)
+                if let product = try? mainContext.fetch(productRequest).first {
+                    transaction.product = product
+                }
+            }
+        }
+        do {
+            try mainContext.save()
+        } catch {
+            print("Ошибка сохранения транзакций из Firebase: \(error)")
+        }
+    }
+    
+    // MARK: - Удаление данных
+    
+    private func removeUserDataFromMainStore(ownerId: String) throws {
+        let mainContext = PersistenceController.shared.container.viewContext
+        
+        let productRequest: NSFetchRequest<ProductItem> = ProductItem.fetchRequest()
+        productRequest.predicate = NSPredicate(format: "ownerId == %@", ownerId)
+        let userItems = try mainContext.fetch(productRequest)
+        for item in userItems {
+            mainContext.delete(item)
+        }
+        try mainContext.save()
+        
+        let transactionRequest: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+        transactionRequest.predicate = NSPredicate(format: "ownerId == %@", ownerId)
+        let userTransactions = try mainContext.fetch(transactionRequest)
+        for t in userTransactions {
+            mainContext.delete(t)
+        }
+        try mainContext.save()
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Services/FirestoreService.swift ---
+//FirestoreService
+import Foundation
+import FirebaseFirestore
+import FirebaseStorage
+import FirebaseAuth
+import CoreData
+
+class FirestoreService {
+    static let shared = FirestoreService()
+    private let db = Firestore.firestore()
+    private let storage = Storage.storage()
+    
+    /// Сохраняет или обновляет товар в Firestore для авторизованного пользователя.
+    func saveOrUpdateProduct(product: ProductItem,
+                             for user: User,
+                             image: UIImage?,
+                             completion: @escaping (Error?) -> Void) {
+        let productId = product.id?.uuidString ?? UUID().uuidString
+        
+        if let image = image {
+            uploadProductImage(image, productId: productId, user: user) { imageUrl in
+                self.setProductData(product: product, imageUrl: imageUrl, for: user, completion: completion)
+            }
+        } else {
+            self.setProductData(product: product, imageUrl: nil, for: user, completion: completion)
+        }
+    }
+    
+    private func uploadProductImage(_ image: UIImage,
+                                    productId: String,
+                                    user: User,
+                                    completion: @escaping (String?) -> Void) {
+        let imageRef = storage.reference().child("users/\(user.uid)/productImages/\(productId).jpg")
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            completion(nil)
+            return
+        }
+        imageRef.putData(imageData, metadata: nil) { _, error in
+            if let error = error {
+                print("Ошибка загрузки фото: \(error.localizedDescription)")
+                completion(nil)
+                return
+            }
+            imageRef.downloadURL { url, error in
+                if let url = url {
+                    completion(url.absoluteString)
+                } else {
+                    completion(nil)
+                }
+            }
+        }
+    }
+    
+    private func setProductData(product: ProductItem,
+                                imageUrl: String?,
+                                for user: User,
+                                completion: @escaping (Error?) -> Void) {
+        let productId = product.id?.uuidString ?? UUID().uuidString
+        
+        var customFieldsData: [String: String] = [:]
+        if let custom = product.customFields as? [String: String] {
+            customFieldsData = custom
+        }
+        
+        var data: [String: Any] = [
+            "id": productId,
+            "name": product.name ?? "",
+            "organization": product.organization ?? "",
+            "price": product.price,
+            "quantity": product.quantity,
+            "category": product.category ?? "",
+            "target": product.target ?? "",
+            "barcode": product.barcode ?? "",
+            "customFields": customFieldsData,
+            "timestamp": FieldValue.serverTimestamp()
+        ]
+        if let imageUrl = imageUrl {
+            data["imageUrl"] = imageUrl
+        }
+        
+        db.collection("users")
+            .document(user.uid)
+            .collection("products")
+            .document(productId)
+            .setData(data, merge: true) { error in
+                completion(error)
+            }
+    }
+    
+    // MARK: - Fetch Products
+    
+    func fetchAllProducts(for user: User, completion: @escaping ([[String: Any]], Error?) -> Void) {
+        db.collection("users")
+            .document(user.uid)
+            .collection("products")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion([], error)
+                    return
+                }
+                guard let docs = snapshot?.documents else {
+                    completion([], nil)
+                    return
+                }
+                let items: [[String: Any]] = docs.map { doc in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                }
+                completion(items, nil)
+            }
+    }
+    
+    // MARK: - Fetch Transactions
+    
+    func fetchAllTransactions(for user: User, completion: @escaping ([[String: Any]], Error?) -> Void) {
+        db.collection("users")
+            .document(user.uid)
+            .collection("transactions")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion([], error)
+                    return
+                }
+                guard let docs = snapshot?.documents else {
+                    completion([], nil)
+                    return
+                }
+                let items: [[String: Any]] = docs.map { doc in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                }
+                completion(items, nil)
+            }
+    }
+    
+    // Сохраняем транзакцию в Firestore
+    func saveTransaction(_ transaction: InventoryTransaction, for user: User, completion: @escaping (Error?) -> Void) {
+        let transactionId = transaction.id?.uuidString ?? UUID().uuidString
+        var data: [String: Any] = [
+            "id": transactionId,
+            "date": transaction.date ?? Date(),
+            "type": transaction.type ?? "",
+            "expenseQuantity": transaction.expenseQuantity,
+            "expensePurpose": transaction.expensePurpose ?? "",
+            "ownerId": user.uid,
+            "timestamp": FieldValue.serverTimestamp()
+        ]
+        if let product = transaction.product, let productId = product.id?.uuidString {
+            data["productId"] = productId
+        }
+        db.collection("users")
+            .document(user.uid)
+            .collection("transactions")
+            .document(transactionId)
+            .setData(data, merge: true) { error in
+                completion(error)
+            }
+    }
+    
+    // MARK: - NEW: fetchLast25Transactions
+    
+    func fetchLast25Transactions(for user: User, completion: @escaping ([[String: Any]], Error?) -> Void) {
+        db.collection("users")
+            .document(user.uid)
+            .collection("transactions")
+            .order(by: "timestamp", descending: true)
+            .limit(to: 25)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion([], error)
+                    return
+                }
+                guard let docs = snapshot?.documents else {
+                    completion([], nil)
+                    return
+                }
+                let items: [[String: Any]] = docs.map { doc in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                }
+                completion(items, nil)
+            }
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Services/GuestPersistenceController.swift ---
+// файл GuestPersistenceController
+import CoreData
+
+final class GuestPersistenceController {
+    static let shared = GuestPersistenceController()
+    let container: NSPersistentContainer
+
+    init(inMemory: Bool = false) {
+        // Используем ту же модель, что и в основном хранилище
+        container = NSPersistentContainer(name: "SklSwiftGuest", managedObjectModel: PersistenceController.model)
+        
+        if inMemory {
+            container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
+        } else {
+            if let storeDescription = container.persistentStoreDescriptions.first {
+                let storeURL = URL.documentsDirectory.appendingPathComponent("GuestSklSwift.sqlite")
+                storeDescription.url = storeURL
+            }
+        }
+        
+        container.loadPersistentStores { storeDescription, error in
+            if let error = error {
+                fatalError("Не удалось загрузить гостевое хранилище: \(error)")
+            }
+        }
+        
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Services/PersistenceController.swift ---
+//PersistenceController
+import CoreData
+import UIKit
+
+final class PersistenceController {
+    static let shared = PersistenceController()
+    
+    // Создаём единую модель для всего приложения
+    static let model: NSManagedObjectModel = {
+        return createManagedObjectModel()
+    }()
+    
+    let container: NSPersistentContainer
+
+    init(inMemory: Bool = false) {
+        container = NSPersistentContainer(name: "SklSwift", managedObjectModel: PersistenceController.model)
+        
+        if inMemory {
+            container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
+        } else {
+            if let storeDescription = container.persistentStoreDescriptions.first {
+                let storeURL = URL.documentsDirectory.appendingPathComponent("SklSwift.sqlite")
+                storeDescription.url = storeURL
+            }
+        }
+        
+        container.loadPersistentStores { storeDescription, error in
+            if let error = error {
+                fatalError("Не удалось загрузить хранилище: \(error)")
+            }
+        }
+        
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    }
+    
+    static func createManagedObjectModel() -> NSManagedObjectModel {
+        let model = NSManagedObjectModel()
+        
+        // Получаем имя модуля (обычно имя приложения)
+        let moduleName = Bundle.main.infoDictionary?["CFBundleName"] as? String ?? ""
+        
+        // WarehouseContainer entity
+        let warehouseEntity = NSEntityDescription()
+        warehouseEntity.name = "WarehouseContainer"
+        warehouseEntity.managedObjectClassName = "\(moduleName).WarehouseContainer"
+        
+        let warehouseIdAttr = NSAttributeDescription()
+        warehouseIdAttr.name = "id"
+        warehouseIdAttr.attributeType = .UUIDAttributeType
+        warehouseIdAttr.isOptional = false
+        
+        let warehouseNameAttr = NSAttributeDescription()
+        warehouseNameAttr.name = "name"
+        warehouseNameAttr.attributeType = .stringAttributeType
+        warehouseNameAttr.isOptional = false
+        
+        warehouseEntity.properties = [warehouseIdAttr, warehouseNameAttr]
+        
+        // ProductItem entity
+        let productEntity = NSEntityDescription()
+        productEntity.name = "ProductItem"
+        productEntity.managedObjectClassName = "\(moduleName).ProductItem"
+        
+        let productIdAttr = NSAttributeDescription()
+        productIdAttr.name = "id"
+        productIdAttr.attributeType = .UUIDAttributeType
+        productIdAttr.isOptional = false
+        
+        let productNameAttr = NSAttributeDescription()
+        productNameAttr.name = "name"
+        productNameAttr.attributeType = .stringAttributeType
+        productNameAttr.isOptional = false
+        
+        let organizationAttr = NSAttributeDescription()
+        organizationAttr.name = "organization"
+        organizationAttr.attributeType = .stringAttributeType
+        organizationAttr.isOptional = false
+        
+        let priceAttr = NSAttributeDescription()
+        priceAttr.name = "price"
+        priceAttr.attributeType = .doubleAttributeType
+        priceAttr.isOptional = false
+        
+        let quantityAttr = NSAttributeDescription()
+        quantityAttr.name = "quantity"
+        quantityAttr.attributeType = .integer64AttributeType
+        quantityAttr.isOptional = false
+        quantityAttr.defaultValue = 0
+        
+        let categoryAttr = NSAttributeDescription()
+        categoryAttr.name = "category"
+        categoryAttr.attributeType = .stringAttributeType
+        categoryAttr.isOptional = false
+        
+        let targetAttr = NSAttributeDescription()
+        targetAttr.name = "target"
+        targetAttr.attributeType = .stringAttributeType
+        targetAttr.isOptional = false
+        
+        let barcodeAttr = NSAttributeDescription()
+        barcodeAttr.name = "barcode"
+        barcodeAttr.attributeType = .stringAttributeType
+        barcodeAttr.isOptional = false
+        
+        let photoAttr = NSAttributeDescription()
+        photoAttr.name = "photo"
+        photoAttr.attributeType = .binaryDataAttributeType
+        photoAttr.isOptional = true
+        photoAttr.allowsExternalBinaryDataStorage = true
+        
+        let customFieldsAttr = NSAttributeDescription()
+        customFieldsAttr.name = "customFields"
+        customFieldsAttr.attributeType = .transformableAttributeType
+        customFieldsAttr.isOptional = true
+        customFieldsAttr.valueTransformerName = NSValueTransformerName.secureUnarchiveFromDataTransformerName.rawValue
+        
+        let productOwnerIdAttr = NSAttributeDescription()
+        productOwnerIdAttr.name = "ownerId"
+        productOwnerIdAttr.attributeType = .stringAttributeType
+        productOwnerIdAttr.isOptional = true
+        
+        productEntity.properties = [
+            productIdAttr,
+            productNameAttr,
+            organizationAttr,
+            priceAttr,
+            quantityAttr,
+            categoryAttr,
+            targetAttr,
+            barcodeAttr,
+            photoAttr,
+            customFieldsAttr,
+            productOwnerIdAttr
+        ]
+        
+        // InventoryTransaction entity
+        let transactionEntity = NSEntityDescription()
+        transactionEntity.name = "InventoryTransaction"
+        transactionEntity.managedObjectClassName = "\(moduleName).InventoryTransaction"
+        
+        let transactionIdAttr = NSAttributeDescription()
+        transactionIdAttr.name = "id"
+        transactionIdAttr.attributeType = .UUIDAttributeType
+        transactionIdAttr.isOptional = false
+        
+        let dateAttr = NSAttributeDescription()
+        dateAttr.name = "date"
+        dateAttr.attributeType = .dateAttributeType
+        dateAttr.isOptional = false
+        
+        let typeAttr = NSAttributeDescription()
+        typeAttr.name = "type"
+        typeAttr.attributeType = .stringAttributeType
+        typeAttr.isOptional = false
+        
+        let expenseQuantityAttr = NSAttributeDescription()
+        expenseQuantityAttr.name = "expenseQuantity"
+        expenseQuantityAttr.attributeType = .integer64AttributeType
+        expenseQuantityAttr.isOptional = false
+        expenseQuantityAttr.defaultValue = 0
+        
+        let expensePurposeAttr = NSAttributeDescription()
+        expensePurposeAttr.name = "expensePurpose"
+        expensePurposeAttr.attributeType = .stringAttributeType
+        expensePurposeAttr.isOptional = true
+        
+        // Атрибут ownerId для транзакций
+        let transactionOwnerIdAttr = NSAttributeDescription()
+        transactionOwnerIdAttr.name = "ownerId"
+        transactionOwnerIdAttr.attributeType = .stringAttributeType
+        transactionOwnerIdAttr.isOptional = true
+        
+        // Новый атрибут productName для денормализации названия товара
+        let transactionProductNameAttr = NSAttributeDescription()
+        transactionProductNameAttr.name = "productName"
+        transactionProductNameAttr.attributeType = .stringAttributeType
+        transactionProductNameAttr.isOptional = true
+        
+        transactionEntity.properties = [
+            transactionIdAttr,
+            dateAttr,
+            typeAttr,
+            expenseQuantityAttr,
+            expensePurposeAttr,
+            transactionOwnerIdAttr,
+            transactionProductNameAttr
+        ]
+        
+        // Связь Transaction -> ProductItem
+        let transactionProductRelationship = NSRelationshipDescription()
+        transactionProductRelationship.name = "product"
+        transactionProductRelationship.destinationEntity = productEntity
+        transactionProductRelationship.minCount = 0
+        transactionProductRelationship.maxCount = 1
+        transactionProductRelationship.deleteRule = .nullifyDeleteRule
+        transactionProductRelationship.isOptional = true
+        transactionEntity.properties.append(transactionProductRelationship)
+        
+        // Связь WarehouseContainer <-> ProductItem
+        let productsRelationship = NSRelationshipDescription()
+        productsRelationship.name = "products"
+        productsRelationship.destinationEntity = productEntity
+        productsRelationship.minCount = 0
+        productsRelationship.maxCount = 0
+        productsRelationship.deleteRule = .nullifyDeleteRule
+        productsRelationship.isOptional = true
+        productsRelationship.isOrdered = false
+        
+        let containerRelationship = NSRelationshipDescription()
+        containerRelationship.name = "container"
+        containerRelationship.destinationEntity = warehouseEntity
+        containerRelationship.minCount = 0
+        containerRelationship.maxCount = 1
+        containerRelationship.deleteRule = .nullifyDeleteRule
+        containerRelationship.isOptional = true
+        
+        productsRelationship.inverseRelationship = containerRelationship
+        containerRelationship.inverseRelationship = productsRelationship
+        
+        warehouseEntity.properties.append(productsRelationship)
+        productEntity.properties.append(containerRelationship)
+        
+        model.entities = [warehouseEntity, productEntity, transactionEntity]
+        return model
+    }
+}
+--- /Users/halil/Desktop/Sklswift/Sklswift/Analytics/AnalyticsView.swift ---
+// файл AnalyticsView
+import SwiftUI
+import CoreData
+import UniformTypeIdentifiers
+
+// Структура для хранения аналитических данных
+struct AnalyticsData {
+    var totalPurchaseCost: Double = 0    // Сумма денег на закупку товаров (Приход)
+    var totalExpenseCost: Double = 0       // Сумма денег на списания (Расход)
+    var purchaseByCategory: [String: Double] = [:]
+    var expenseByCategory: [String: Double] = [:]
+    var purchaseByTechnique: [String: Double] = [:]
+    var expenseByTechnique: [String: Double] = [:]
+    var incomingCount: Int = 0             // Количество операций "Приход"
+    var expenseCount: Int = 0              // Количество операций "Расход"
+}
+
+struct AnalyticsView: View {
+    @State private var startDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var endDate: Date = Date()
+    @State private var analyticsData = AnalyticsData()
+    @State private var showAnalytics: Bool = false
+    @State private var showExportSheet: Bool = false
+    @State private var exportFileURL: URL? = nil
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Form {
+                    Section(header: Text("Выберите период")) {
+                        DatePicker("Начало", selection: $startDate, displayedComponents: .date)
+                        DatePicker("Конец", selection: $endDate, displayedComponents: .date)
+                        Button("Обновить статистику") {
+                            analyticsData = computeAnalytics()
+                            showAnalytics = true
+                        }
+                    }
+                    
+                    if showAnalytics {
+                        Section(header: Text("Общая статистика")) {
+                            HStack {
+                                Text("Закупка товаров:")
+                                Spacer()
+                                Text(String(format: "%.2f ₽", analyticsData.totalPurchaseCost))
+                            }
+                            HStack {
+                                Text("Расходы:")
+                                Spacer()
+                                Text(String(format: "%.2f ₽", analyticsData.totalExpenseCost))
+                            }
+                            HStack {
+                                Text("Операций закупки:")
+                                Spacer()
+                                Text("\(analyticsData.incomingCount)")
+                            }
+                            HStack {
+                                Text("Операций расходов:")
+                                Spacer()
+                                Text("\(analyticsData.expenseCount)")
+                            }
+                        }
+                        
+                        Section(header: Text("По категориям (Закупка / Расход)")) {
+                            ForEach(Array(analyticsData.purchaseByCategory.keys).sorted(), id: \.self) { key in
+                                HStack {
+                                    Text(key)
+                                    Spacer()
+                                    Text(String(format: "%.2f ₽", analyticsData.purchaseByCategory[key] ?? 0))
+                                    Text("/")
+                                    Text(String(format: "%.2f ₽", analyticsData.expenseByCategory[key] ?? 0))
+                                }
+                            }
+                        }
+                        
+                        Section(header: Text("По технике (Закупка / Расход)")) {
+                            ForEach(Array(analyticsData.purchaseByTechnique.keys).sorted(), id: \.self) { key in
+                                HStack {
+                                    Text(key)
+                                    Spacer()
+                                    Text(String(format: "%.2f ₽", analyticsData.purchaseByTechnique[key] ?? 0))
+                                    Text("/")
+                                    Text(String(format: "%.2f ₽", analyticsData.expenseByTechnique[key] ?? 0))
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Button("Экспортировать таблицу") {
+                    exportAnalytics()
+                }
+                .padding()
+            }
+            .navigationTitle("Аналитика")
+            .sheet(isPresented: $showExportSheet, onDismiss: {
+                if let url = exportFileURL {
+                    try? FileManager.default.removeItem(at: url)
+                    exportFileURL = nil
+                }
+            }) {
+                if let url = exportFileURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
+        }
+    }
+    
+    // Вычисление аналитики по выбранному периоду
+    private func computeAnalytics() -> AnalyticsData {
+        let context = PersistenceController.shared.container.viewContext
+        let request: NSFetchRequest<InventoryTransaction> = InventoryTransaction.fetchRequest()
+        request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", startDate as NSDate, endDate as NSDate)
+        
+        var data = AnalyticsData()
+        
+        do {
+            let transactions = try context.fetch(request)
+            
+            for t in transactions where t.type == "Расход" {
+                if let product = t.product {
+                    data.expenseCount += 1
+                    let expenseCost = product.price * Double(t.expenseQuantity)
+                    data.totalExpenseCost += expenseCost
+                    
+                    let cat = product.category ?? "Без категории"
+                    data.expenseByCategory[cat, default: 0] += expenseCost
+                    
+                    let tech = product.target ?? "Без техники"
+                    data.expenseByTechnique[tech, default: 0] += expenseCost
+                }
+            }
+            
+            var expenseSumByProduct: [NSManagedObjectID: Int64] = [:]
+            for t in transactions where t.type == "Расход" {
+                if let product = t.product {
+                    expenseSumByProduct[product.objectID, default: 0] += t.expenseQuantity
+                }
+            }
+            
+            for t in transactions where t.type == "Приход" {
+                if let product = t.product {
+                    data.incomingCount += 1
+                    let expenseSum = expenseSumByProduct[product.objectID] ?? 0
+                    let purchasedQuantity = product.quantity + expenseSum
+                    let purchaseCost = product.price * Double(purchasedQuantity)
+                    data.totalPurchaseCost += purchaseCost
+                    
+                    let cat = product.category ?? "Без категории"
+                    data.purchaseByCategory[cat, default: 0] += purchaseCost
+                    
+                    let tech = product.target ?? "Без техники"
+                    data.purchaseByTechnique[tech, default: 0] += purchaseCost
+                }
+            }
+        } catch {
+            print("Ошибка выборки транзакций: \(error)")
+        }
+        
+        return data
+    }
+    
+    // Экспорт аналитики в CSV-файл
+    private func exportAnalytics() {
+        let data = computeAnalytics()
+        var csv = "Параметр,Значение\n"
+        csv += "Закупка товаров,\"\(data.totalPurchaseCost)\"\n"
+        csv += "Расходы,\"\(data.totalExpenseCost)\"\n"
+        csv += "Операций закупки,\"\(data.incomingCount)\"\n"
+        csv += "Операций расходов,\"\(data.expenseCount)\"\n\n"
+        
+        csv += "Категория,Закупка,Расход\n"
+        for key in Array(data.purchaseByCategory.keys).sorted() {
+            let purchase = data.purchaseByCategory[key] ?? 0
+            let expense = data.expenseByCategory[key] ?? 0
+            csv += "\"\(key)\",\"\(purchase)\",\"\(expense)\"\n"
+        }
+        
+        csv += "\nТехника,Закупка,Расход\n"
+        for key in Array(data.purchaseByTechnique.keys).sorted() {
+            let purchase = data.purchaseByTechnique[key] ?? 0
+            let expense = data.expenseByTechnique[key] ?? 0
+            csv += "\"\(key)\",\"\(purchase)\",\"\(expense)\"\n"
+        }
+        
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "Analytics_\(Date().timeIntervalSince1970).csv"
+        let url = tempDir.appendingPathComponent(fileName)
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            exportFileURL = url
+            showExportSheet = true
+        } catch {
+            print("Ошибка экспорта аналитики: \(error)")
+        }
+    }
+}
+
+// Единственная реализация ShareSheet
+struct ShareSheet2: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+         UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
+}
+
+struct AnalyticsView_Previews: PreviewProvider {
+    static var previews: some View {
+        AnalyticsView()
+            .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+    }
+}

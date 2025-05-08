@@ -16,6 +16,7 @@
 		9F6C52812D772E1300A8101E /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52802D772E1300A8101E /* FirebaseDatabase */; };
 		9F6C52832D772E1300A8101E /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52822D772E1300A8101E /* FirebaseFirestore */; };
 		9F6C52852D772E1300A8101E /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6C52842D772E1300A8101E /* FirebaseStorage */; };
+		9F6C530B2DA5422200A8101E /* Untitled 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6C52C02D941B9F00A8101E /* Untitled 2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +37,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		9F6C52B92D92CFC200A8101E /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
+		9F6C52C02D941B9F00A8101E /* Untitled 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Untitled 2.swift"; sourceTree = "<group>"; };
 		9FC637452D5B79610086F906 /* SklSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SklSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FC637552D5B79630086F906 /* SklSwiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SklSwiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FC6375F2D5B79630086F906 /* SklSwiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SklSwiftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,10 +99,12 @@
 		9FC6373C2D5B79600086F906 = {
 			isa = PBXGroup;
 			children = (
+				9F6C52B92D92CFC200A8101E /* Untitled.swift */,
 				9FC637472D5B79610086F906 /* SklSwift */,
 				9FC637582D5B79630086F906 /* SklSwiftTests */,
 				9FC637622D5B79630086F906 /* SklSwiftUITests */,
 				9FC637462D5B79610086F906 /* Products */,
+				9F6C52C02D941B9F00A8101E /* Untitled 2.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -254,6 +259,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9F6C530B2DA5422200A8101E /* Untitled 2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
